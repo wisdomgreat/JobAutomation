@@ -37,12 +37,19 @@ def build():
     build_dir = cur_dir / "build"
     dist_dir = cur_dir / "dist"
     
-    if build_dir.exists(): 
-        safe_print("🧹 Cleaning build directory...")
-        shutil.rmtree(build_dir)
-    if dist_dir.exists(): 
-        safe_print("🧹 Cleaning dist directory...")
-        shutil.rmtree(dist_dir)
+    try:
+        if build_dir.exists(): 
+            safe_print("🧹 Cleaning build directory...")
+            shutil.rmtree(build_dir)
+        if dist_dir.exists(): 
+            safe_print("🧹 Cleaning dist directory...")
+            shutil.rmtree(dist_dir)
+    except PermissionError:
+        safe_print("\n⚠️ ERROR: Access Denied during cleanup.")
+        safe_print(f"📍 Is the '{APP_NAME}' application still running? Please close it and try again.")
+        sys.exit(1)
+    except Exception as e:
+        safe_print(f"⚠️ Warning: Could not clean build folders: {e}")
     
     # 3. Construct PyInstaller command
     # Use system-specific separator for --add-data (; for Windows, : for Unix)
