@@ -61,6 +61,7 @@ def build():
         "--windowed",
         "--name", APP_NAME,
         "--clean",
+        "--noupx",
     ]
     
     # Add TDWAS Metadata (Windows Only)

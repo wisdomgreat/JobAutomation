@@ -3,7 +3,7 @@
 ; website: tdwas.com
 
 #define MyAppName "Sovereign Agent"
-#define MyAppVersion "25.0"
+#define MyAppVersion "26.0"
 #define MyAppPublisher "TDWAS Technology"
 #define MyAppURL "https://tdwas.com"
 #define MyAppExeName "SovereignAgent.exe"
@@ -28,7 +28,8 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=dist
-OutputBaseFilename=Sovereign_Agent_Setup_v25
+OutputBaseFilename=Sovereign_Agent_Setup_v26
+PrivilegesRequired=admin
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -48,7 +49,56 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-; NOTE: We preserve the user's permanent identity in AppData/Roaming manually.
-; Only deleting the software files from Program Files.
+; The application files are handled by the standard uninstaller.
+; Data cleanup is handled by the [Code] section below.
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+var
+  PurgeCheckBox: TNewCheckBox;
+
+procedure InitializeUninstallProgressForm();
+var
+  PageText: TNewStaticText;
+begin
+  // Only add the checkbox if we are in full UI mode
+  if not UninstallSilent then
+  begin
+    PageText := TNewStaticText.Create(UninstallProgressForm);
+    PageText.Parent := UninstallProgressForm.Bevel;
+    PageText.Left := ScaleX(20);
+    PageText.Top := UninstallProgressForm.Bevel.Height - ScaleY(60);
+    PageText.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
+    PageText.Caption := 'Sovereign Intelligence Purge:';
+    PageText.Font.Style := [fsBold];
+
+    PurgeCheckBox := TNewCheckBox.Create(UninstallProgressForm);
+    PurgeCheckBox.Parent := UninstallProgressForm.Bevel;
+    PurgeCheckBox.Left := ScaleX(20);
+    PurgeCheckBox.Top := UninstallProgressForm.Bevel.Height - ScaleY(40);
+    PurgeCheckBox.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
+    PurgeCheckBox.Caption := 'Total Purge: Delete all Identity Profile, Resumes, and Application Data';
+    PurgeCheckBox.Checked := False;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataPath: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if Assigned(PurgeCheckBox) and PurgeCheckBox.Checked then
+    begin
+      DataPath := ExpandConstant('{userappdata}\TDWAS\SovereignAgent');
+      Log('Starting Total Purge of: ' + DataPath);
+      if DirExists(DataPath) then
+      begin
+        if DelTree(DataPath, True, True, True) then
+          Log('Total Purge Successful.')
+        else
+          Log('Total Purge Failed (Files may be in use).');
+      end;
+    end;
+  end;
+end;
