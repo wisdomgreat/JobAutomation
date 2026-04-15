@@ -80,7 +80,7 @@ def build():
     # Exclude heavy modules to reduce size
     module_excludes = [
         "pandas", "numpy", "matplotlib", "scipy", "notebook", 
-        "IPython", "jedi", "pyarrow", "pytest", "unittest",
+        "IPython", "jedi", "pyarrow", "pytest",
         "tkinter.test", "sqlite3.test"
     ]
     for mod in module_excludes:
