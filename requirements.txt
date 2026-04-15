@@ -42,4 +42,7 @@ python-Levenshtein>=0.25
 # GUI
 customtkinter==5.2.2
 pillow==11.1.0
+
+# Build & Release Tools
 pyinstaller>=6.0.0
+pyinstaller-hooks-contrib>=2024.0

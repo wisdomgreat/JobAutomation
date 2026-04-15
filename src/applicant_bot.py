@@ -103,6 +103,12 @@ class ApplicantBot:
             self.driver.execute_script(f"window.scrollTo({{top: {scroll_to}, behavior: 'smooth'}});")
             _human_delay(2, 5) # Spend time 'reading'
             
+            # Phase 28: Human-Parallelism Jitter
+            for _ in range(random.randint(1, 3)):
+                jitter = random.randint(-50, 50)
+                self.driver.execute_script(f"window.scrollBy(0, {jitter});")
+                time.sleep(random.uniform(0.2, 0.5))
+            
             # Small wiggle
             self.driver.execute_script("window.scrollBy(0, 150);")
             _short_delay()
@@ -379,13 +385,14 @@ class ApplicantBot:
             "//button[contains(@aria-label, 'Continue')]",
             "//button[contains(@aria-label, 'Review')]",
             "//button[contains(@aria-label, 'Submit')]",
-            "//button[contains(@aria-label, 'Apply')]",
-            "//*[@data-control-name='continue_unify']",
-            "//*[@data-control-name='submit_unify']",
+            # Priority selectors for modal interior
             "//button[contains(., 'Next')]",
             "//button[contains(., 'Review')]",
             "//button[contains(., 'Submit')]",
-            "//button[contains(., 'Apply')]",
+            "//button[contains(., 'Done')]",
+            "//button[contains(., 'Continue')]",
+            "//*[@data-control-name='continue_unify']",
+            "//*[@data-control-name='submit_unify']",
             "//*[contains(text(), 'Next')]/ancestor::button",
             "//*[contains(text(), 'Review')]/ancestor::button",
             "//*[contains(text(), 'Submit')]/ancestor::button",
@@ -551,6 +558,34 @@ class ApplicantBot:
                     _human_delay(1, 2)
             except:
                 continue
+    
+    def _check_for_bot_challenges(self):
+        """Scans the page for common bot-check artifacts (Cloudflare, HCaptcha) and pauses for manual resolution."""
+        challenge_selectors = [
+            "//iframe[contains(@src, 'cloudflare')]",
+            "//iframe[contains(@src, 'hcaptcha')]",
+            "//div[contains(@class, 'cf-turnstile')]",
+            "//h1[contains(text(), 'Verify you are human')]",
+            "//title[contains(text(), 'Attention Required')]"
+        ]
+        for selector in challenge_selectors:
+            try:
+                if self.driver.find_elements(By.XPATH, selector):
+                    self._log("🚨 Bot challenge detected! Pausing for manual resolution...", level="WARNING")
+                    _safe_print("\n  [bold red]🚨 BOT CHALLENGE DETECTED![/]")
+                    _safe_print("  [yellow]Please complete the CAPTCHA/Verification in the browser window.[/]")
+                    _safe_print("  [yellow]The bot will resume automatically once the challenge is cleared.[/]")
+                    
+                    # Wait until the challenge is gone
+                    start_wait = time.time()
+                    while time.time() - start_wait < 300: # 5 minute max wait
+                        time.sleep(5)
+                        if not self.driver.find_elements(By.XPATH, selector):
+                            self._log("✓ Bot challenge cleared. Resuming...")
+                            return True
+                    return False
+            except: continue
+        return True
 
 
 class IndeedBot(ApplicantBot):
@@ -688,11 +723,14 @@ class IndeedBot(ApplicantBot):
             if not apply_button:
                 # 4. Check for "Apply on company site"
                 try:
-                    external_btn = self.driver.find_element(By.XPATH, "//button[contains(., 'Apply on company site')] | //a[contains(., 'Apply on company site')]")
-                    _safe_print("  🔗 External application detected. Following link...")
-                    self._safe_click(external_btn)
-                    _human_delay(3, 5)
-                    return self._apply_external(resume_path, cover_letter_path, resume_text)
+                    # Look for both the text and the 'external' icon variants
+                    ext_btn = self.driver.find_element(By.XPATH, "//button[contains(., 'Apply on company site')] | //a[contains(., 'Apply on company site')] | //button[contains(., 'Apply')] | //a[contains(., 'Apply')]")
+                    
+                    if "easy apply" not in ext_btn.text.lower():
+                        _safe_print("  🔗 External application detected. Following link...")
+                        self._safe_click(ext_btn)
+                        _human_delay(3, 5)
+                        return self._apply_external(resume_path, cover_letter_path, resume_text)
                 except NoSuchElementException:
                     # Generic fallback
                     try:
@@ -783,8 +821,16 @@ class IndeedBot(ApplicantBot):
 
         # sc=0kf%3Aattr%28V7L7S%29%3B is the "Apply with Indeed resume" filter (Easy Apply)
         # Using .com or .ca based on location or default to .com
-        domain = "ca.indeed.com" if "canada" in location.lower() or "ontario" in location.lower() else "www.indeed.com"
-        search_url = f"https://{domain}/jobs?q={keywords}&l={location}&sc=0kf%3Aattr%28V7L7S%29%3B"
+        # Phase 28: Global Domain Resolver
+        # Automatically detect and use the appropriate regional Indeed domain
+        base_domain = "www.indeed.com"
+        if "canada" in location.lower() or "ca" in location.lower(): base_domain = "ca.indeed.com"
+        elif "uk" in location.lower() or "kingdom" in location.lower(): base_domain = "uk.indeed.com"
+        elif "india" in location.lower() or "in" in location.lower(): base_domain = "in.indeed.com"
+        elif "australia" in location.lower() or "au" in location.lower(): base_domain = "au.indeed.com"
+        # Add more mappings as needed, default to .com
+        
+        search_url = f"https://{base_domain}/jobs?q={keywords}&l={location}&sc=0kf%3Aattr%28V7L7S%29%3B"
         
         _safe_print(f"  🔍 Searching Indeed: [cyan]{keywords}[/] in [cyan]{location}[/]")
         self.driver.get(search_url)
@@ -1127,12 +1173,38 @@ Rules:
                         result["message"] = "Applied"
                         return result
 
-                # 6.2 Check for stall using modal text
+                # 6.2 Check for external redirects (New Tab)
+                if len(self.driver.window_handles) > 1:
+                    self._log("New tab detected during modal step. Handling as external redirect...")
+                    return self._apply_external(resume_path, cover_letter_path, resume_text)
+
+                # 6.3 Check for stall using modal text
                 current_state = "".join([e.text for e in self.driver.find_elements(By.TAG_NAME, "h3")]) + \
                                 "".join([e.text for e in self.driver.find_elements(By.CSS_SELECTOR, "div.pb4")])
                 
+                stall_count = getattr(self, "_stall_count", 0)
                 if current_state == last_page_state and step > 0:
-                    self._log("Stall detected: Modal content hasn't changed. Attempting recovery fill...")
+                    stall_count += 1
+                    self._stall_count = stall_count
+                    self._log(f"Stall detected ({stall_count}/3): Modal content hasn't changed.")
+                    
+                    if stall_count >= 3:
+                        self._log("Hard stall: Modal refused to advance after 3 attempts.")
+                        # Phase 28: Attempt one last "Total AI Overhaul" fill before giving up
+                        self._log("Attempting Emergency Smart AI Analysis...")
+                        from src.form_filler import smart_analyze_page
+                        smart_data = smart_analyze_page(self.driver, self.profile.get_form_data(), resume_text)
+                        if smart_data:
+                            for sel, val in smart_data.items():
+                                try:
+                                    el = self.driver.find_element(By.CSS_SELECTOR, sel)
+                                    if el.is_displayed():
+                                        el.send_keys(val)
+                                except: pass
+                        
+                        self._save_debug_info("linkedin_hard_stall")
+                        return {"success": False, "message": "Stuck in modal (Hard Stall)"}
+                    
                     from src.form_filler import auto_fill_page
                     
                     # 6.2.1 Check for errors
@@ -1149,6 +1221,8 @@ Rules:
                     # Scroll and Wait
                     self.driver.execute_script("window.scrollBy(0, 150);")
                     _human_delay(1, 2)
+                else:
+                    self._stall_count = 0 # Reset on progress
                 last_page_state = current_state
 
                 # 6.3 Proactive Fill
@@ -1303,20 +1377,26 @@ Rules:
 
     def _apply_external(self, resume_path, cover_letter_path, resume_text) -> dict:
         """Helper to fill external forms reached via LinkedIn."""
-        _human_delay(3, 5)
-        # LinkedIn often opens in a new tab
-        if len(self.driver.window_handles) > 1:
-            self.driver.switch_to.window(self.driver.window_handles[-1])
+        self._log("Waiting for external redirect...")
+        
+        # Phase 27.3: Wait for URL departure from LinkedIn
+        start_time = time.time()
+        while time.time() - start_time < 12:
+            current_url = self.driver.current_url.lower()
+            if "linkedin.com" not in current_url or "/jobs/view/" not in current_url:
+                if len(self.driver.window_handles) > 1:
+                    self.driver.switch_to.window(self.driver.window_handles[-1])
+                break
+            time.sleep(1)
             
-        _safe_print(f"  🤖 Filling external form at {self.driver.current_url[:50]}...")
-        auto_fill_page(
-            self.driver, 
-            self.profile.get_form_data(), 
-            resume_path, 
-            cover_letter_path,
-            resume_text
-        )
-        return {"success": False, "message": "External form filled. Please review and submit manually."}
+        # Final safety check
+        if "linkedin.com" in self.driver.current_url.lower() and "/jobs/view/" in self.driver.current_url:
+             return {"success": False, "message": "Failed to redirect away from LinkedIn"}
+
+        # Use the powerful ExternalBot engine to handle the company site
+        ext_bot = ExternalBot(profile_name="external_redir", profile=self.profile)
+        ext_bot.driver = self.driver # Share the driver
+        return ext_bot.apply(self.driver.current_url, resume_path, cover_letter_path, resume_text)
 
 
 class ExternalBot(ApplicantBot):
@@ -1338,32 +1418,33 @@ class ExternalBot(ApplicantBot):
                 _human_delay(2, 4)
                 current_url = self.driver.current_url
                 self._log(f"Handling external page {step+1}: {current_url}")
-                _safe_print(f"  🤖 Checking page {step+1}...")
                 
-                # LOOP DETECTION: If we've been on the same URL for 3 steps, we might be stuck
+                # Phase 27.3: Domain Safety Check (Prevent LinkedIn Loops)
+                if any(domain in current_url.lower() for domain in ["linkedin.com", "indeed.com"]):
+                    if "/jobs/view/" in current_url or "/viewjob" in current_url:
+                        self._log("Critical: ExternalBot trapped on major platform page. Aborting loop.")
+                        break
+
+                _safe_print(f"  🤖 Analyzing company page {step+1}...")
+                
+                # EXPLORATION: Scroll down and up to trigger lazy-loaded components
+                self._human_scroll()
+                _human_delay(1, 2)
+                # 0. Check for Success
+                body_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+                if any(phrase in body_text for phrase in ["applied", "submitted", "thank you", "received", "success"]):
+                    return {"success": True, "message": "External application submitted!"}
+
+                # 1. LOOP DETECTION
                 recent_urls.append(current_url)
                 if len(recent_urls) > 3:
                     recent_urls.pop(0)
                     if len(set(recent_urls)) == 1:
-                        self._log("Loop detected: URL hasn't changed in 3 steps.")
-                        _safe_print("  ⚠ Loop detected (stuck on same page). Saving debug info...")
-                        self._save_debug_info("external_loop")
-                        break
+                        # Attempt a scroll to reveal more if stuck
+                        self._human_scroll()
+                        _human_delay(1, 2)
 
-                # 0. Check for "Login Wall" / "Account Creation"
-                body_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-                login_indicators = [
-                    "sign in to your account", "create an account to apply", 
-                    "log in with linkedin", "sign in with google",
-                    "already have an account?", "password is required"
-                ]
-                if any(phrase in body_text for phrase in login_indicators) and step > 1:
-                    self._log("Login wall detected. Exiting.")
-                    _safe_print("  ⚠ Account creation or login required. Saving debug...")
-                    self._save_debug_info("external_login_wall")
-                    return {"success": False, "message": "Login wall: Account creation required"}
-
-                # Check for form fields
+                # 2. PROACTIVE FORM FILLING
                 filled = auto_fill_page(
                     self.driver, 
                     self.profile.get_form_data(), 
@@ -1371,99 +1452,75 @@ class ExternalBot(ApplicantBot):
                     cover_letter_path,
                     resume_text
                 )
-                self._log(f"Filled {filled} fields on this page")
+                self._log(f"Filled {filled} fields")
                 
-                # If we filled anything OR nothing to fill, we need to move forward
+                # 3. TRANSITION & NAVIGATION
                 clicked_action = False
                 
-                # 1. Try transition buttons if nothing filled (Apply/Start)
-                if filled == 0:
-                    transition_selectors = [
-                        "//button[contains(translate(., 'APPLY', 'apply'), 'apply')]",
-                        "//a[contains(translate(., 'APPLY', 'apply'), 'apply')]",
-                        "//button[contains(translate(., 'START', 'start'), 'start')]",
-                        "//a[contains(translate(., 'START', 'start'), 'start')]",
-                        "//div[@role='button' and contains(translate(., 'APPLY', 'apply'), 'apply')]",
-                        "//button[contains(@aria-label, 'Apply')]",
-                        "//a[contains(@class, 'apply')]",
-                        "//button[contains(., 'Create Account')]",
-                        "//button[contains(., 'Sign Up')]",
-                        "//a[contains(., 'Quick Apply')]",
-                        "//button[contains(., '1-Click Apply')]",
-                        "//*[@data-automation='apply-button']",
-                    ]
-                    for xpath in transition_selectors:
-                        try:
-                            # Use a short wait for transition buttons
-                            btn = WebDriverWait(self.driver, 3).until(
-                                EC.element_to_be_clickable((By.XPATH, xpath))
-                            )
-                            # Confirm it's not a "Privacy Policy" or similar
-                            btn_text = btn.text.lower()
-                            if any(bad in btn_text for bad in ["privacy", "cookies", "terms", "login", "sign in"]):
-                                continue
+                # Check for loading spinners first
+                try:
+                    spinners = self.driver.find_elements(By.CSS_SELECTOR, "[class*='spinner'], [class*='loading'], .wait-overlay")
+                    if any(s.is_displayed() for s in spinners):
+                        self._log("Spinner detected, waiting...")
+                        time.sleep(3)
+                except: pass
 
-                            self._log(f"Clicking transition button: {btn_text[:30]}")
-                            _safe_print(f"  🖱 Clicking transition button: {btn.text[:30]}...")
+                # Try Transition Buttons (Apply, Start, I am interested)
+                transition_selectors = [
+                    "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'apply')]",
+                    "//a[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'apply')]",
+                    "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'interested')]",
+                    "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'start')]",
+                    "//button[contains(., 'Upload')]",
+                    "//button[contains(., 'Select File')]",
+                    "//*[@data-automation='apply-button']",
+                    "//*[contains(text(), 'Apply Now')]/ancestor::button",
+                    # Greenhouse / Lever common patterns
+                    "//a[contains(@class, 'button') and contains(., 'Apply')]",
+                    "//button[contains(@class, 'primary')]",
+                ]
+                
+                for xpath in transition_selectors:
+                    try:
+                        btn = self.driver.find_element(By.XPATH, xpath)
+                        if btn.is_displayed():
+                            btn_text = btn.text.lower()
+                            if any(bad in btn_text for bad in ["privacy", "cookies", "terms"]): continue
+                            
+                            self._log(f"Clicking: {btn_text[:20]}")
                             self._safe_click(btn)
                             clicked_action = True
                             _human_delay(3, 5)
-                            # After clicking a transition, we might be on a new page or tab
-                            if len(self.driver.window_handles) > 1:
-                                self.driver.switch_to.window(self.driver.window_handles[-1])
                             break
-                        except (TimeoutException, NoSuchElementException):
-                            continue
+                    except: continue
 
-                # 2. Try navigation buttons (Next/Continue/Submit)
+                # Try Navigation (Next, Continue, Review, Submit)
                 if not clicked_action:
                     nav_selectors = [
-                        "//button[contains(., 'Next')]",
                         "//button[contains(., 'Continue')]",
+                        "//button[contains(., 'Next')]",
+                        "//button[contains(., 'Review')]",
                         "//button[contains(., 'Submit')]",
-                        "//button[contains(., 'Create Account')]",
-                        "//button[contains(., 'Save & Continue')]",
-                        "//input[@type='submit']"
+                        "//button[contains(., 'Finish')]",
+                        "//button[contains(@class, 'submit')]",
+                        "//input[@type='submit']",
+                        "//button[contains(translate(., 'NEXT', 'next'), 'next')]"
                     ]
                     for xpath in nav_selectors:
                         try:
                             btn = self.driver.find_element(By.XPATH, xpath)
-                            if not btn.is_displayed(): continue
-                            
-                            btn_text = btn.text or btn.get_attribute("value") or "Submit"
-                            self._log(f"Clicking navigation button: {btn_text[:30]}")
-                            _safe_print(f"  🖱 Clicking navigation: {btn_text[:30]}...")
-                            
-                            # If it's a submit button, we might be done
-                            is_submit = any(kw in btn_text.lower() for kw in ["submit", "finish", "complete"])
-                            
-                            self._safe_click(btn)
-                            clicked_action = True
-                            _human_delay(3, 5)
-                            
-                            if is_submit:
-                                # Final check for success message
-                                _human_delay(2, 4)
-                                body_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-                                if any(phrase in body_text for phrase in ["applied", "submitted", "thank you", "received"]):
-                                    result["success"] = True
-                                    result["message"] = "Application submitted successfully"
-                                    _safe_print("  ✓ Application submitted!")
-                                    return result
-                                else:
-                                    self._log("Submit clicked but no success message seen")
-                            break
-                        except Exception:
-                            continue
+                            if btn.is_displayed():
+                                self._log(f"Navigating: {btn.text[:20]}")
+                                self._safe_click(btn)
+                                clicked_action = True
+                                _human_delay(3, 5)
+                                break
+                        except: continue
 
-                # If nothing worked, we might be stuck
-                if not clicked_action:
-                    self._log("No clickable actions found on current page")
-                    _safe_print("  ⚠ No more actions found on this page.")
-                    self._save_debug_info("external_stuck")
-                    break
-
-            return {"success": False, "message": "External form filled. Please review manually."}
+                if not clicked_action and step > 1:
+                    break # No more actions found
+            
+            return {"success": False, "message": "External form handled. Please review manually."}
         except Exception as e:
             return {"success": False, "message": f"External bot error: {e}"}
 

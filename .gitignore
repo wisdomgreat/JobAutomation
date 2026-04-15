@@ -46,3 +46,5 @@ debug/
 output/
 tmp/
 test_output/
+scratch/
+logs/

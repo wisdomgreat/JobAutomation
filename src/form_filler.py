@@ -125,29 +125,68 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
                 print(f"    - Filling {label[:25]}... with {val}")
                 inp.clear()
                 _slow_type(inp, val)
+                
+                # Phase 27: LinkedIn/Indeed Autocomplete Handler
+                if matched_key == "city":
+                    time.sleep(1.2) # Wait for suggestions
+                    try:
+                        # Common autocomplete dropdown selectors
+                        suggestions = driver.find_elements(By.CSS_SELECTOR, ".artdeco-typeahead__result, .fb-typeahead__result, .typeahead-result, [role='option'], .ac-suggestion")
+                        if suggestions:
+                            print(f"      - Selecting suggestion: {suggestions[0].text[:30]}")
+                            suggestions[0].click()
+                    except: pass
+
                 filled_count += 1
                 time.sleep(random.uniform(0.5, 1.2)) # Pause between fields
+                _trigger_validation(inp, driver)
         except Exception:
             continue
     
     # 2. Handle File Uploads
     file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+    
+    # Phase 27.2: If no inputs found, check for 'Upload' buttons that might reveal one
+    if not file_inputs:
+        try:
+            upload_buttons = driver.find_elements(By.XPATH, "//button[contains(., 'Upload') or contains(., 'Replace')]")
+            for btn in upload_buttons:
+                if btn.is_displayed():
+                    btn.click() # Reveal hidden input
+                    time.sleep(1)
+                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+                    break
+        except: pass
+
     for inp in file_inputs:
         try:
             label = _get_label(inp, driver).lower()
             aria_label = (inp.get_attribute("aria-label") or "").lower()
-            is_resume = any(kw in label or kw in aria_label for kw in ["resume", "cv", "curriculum"])
-            is_cover = any(kw in label or kw in aria_label for kw in ["cover letter", "letter of interest"])
+            
+            # Deep check: Look at parent text if label/aria is empty
+            parent_text = ""
+            try:
+                parent = inp.find_element(By.XPATH, "./..")
+                parent_text = parent.text.lower()
+            except: pass
+
+            is_resume = any(kw in label or kw in aria_label or kw in parent_text for kw in ["resume", "cv", "curriculum"])
+            is_cover = any(kw in label or kw in aria_label or kw in parent_text for kw in ["cover letter", "letter of interest"])
 
             target_path = None
             if is_resume: target_path = resume_path
             elif is_cover: target_path = cover_letter_path
 
             if target_path and Path(target_path).exists():
-                if not inp.is_displayed():
-                    driver.execute_script("arguments[0].style.display = 'block'; arguments[0].style.visibility = 'visible';", inp)
-                inp.send_keys(str(Path(target_path).absolute()))
-                print(f"  📎 Uploaded: {Path(target_path).name}")
+                # Force visibility for stealth/hidden inputs
+                driver.execute_script("arguments[0].style.display = 'block'; arguments[0].style.visibility = 'visible'; arguments[0].style.opacity = '1';", inp)
+                time.sleep(0.5)
+                
+                # Absolute path is required for file uploads
+                abs_path = str(Path(target_path).absolute())
+                inp.send_keys(abs_path)
+                print(f"  📎 Uploaded {('resume' if is_resume else 'cover letter')}: {Path(target_path).name}")
+                time.sleep(1.5)
                 filled_count += 1
         except Exception:
             continue
@@ -171,6 +210,7 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
             if val:
                 if _select_best_option(select, val):
                     filled_count += 1
+                    _trigger_validation(sel_elem, driver)
         except Exception:
             continue
 
@@ -191,27 +231,49 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
 
             # Consulting AI
             val = _answer_question_with_llm(label, profile_data, resume_text, is_dropdown=True)
+            
+            # Phase 27: Proactive Work Auth Matching
+            if not val:
+                if any(kw in label for kw in ["authorized", "eligible", "right to work"]):
+                    val = "Yes" if profile_data.get("authorized_to_work", True) else "No"
+                elif any(kw in label for kw in ["sponsorship", "visa"]):
+                    val = "Yes" if profile_data.get("sponsorship_needed", False) else "No"
+
             if val:
                 # 1. Click to open
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", drop)
                 _stealth_click(drop, driver)
-                time.sleep(0.8) # Wait for animation
+                time.sleep(1.0) # Wait for animation
                 
                 # 2. Find options in the revealed menu
                 options = driver.find_elements(By.CSS_SELECTOR, ".artdeco-dropdown__item, .fb-dropdown__option, [role='option'], .jobs-easy-apply-form-element__option")
                 if not options:
-                    options = driver.find_elements(By.XPATH, "//li[@role='option'] | //div[@role='option']")
+                    options = driver.find_elements(By.XPATH, "//li[@role='option'] | //div[@role='option'] | //artdeco-dropdown-item")
                 
                 best_match = None
+                val_lower = val.lower()
                 for opt in options:
-                    if val.lower() in opt.text.lower() or opt.text.lower() in val.lower():
+                    opt_text = opt.text.lower()
+                    if val_lower == opt_text or val_lower in opt_text or opt_text in val_lower:
                         best_match = opt
                         break
-                
+                    # Special case for Yes/No buttons
+                    if val_lower in ["yes", "no"] and (opt_text.strip() == val_lower or opt_text.startswith(val_lower)):
+                        best_match = opt
+                        break
+
                 if best_match:
+                    print(f"      - Selecting: {best_match.text[:30]}")
                     _stealth_click(best_match, driver)
                     filled_count += 1
+                    _trigger_validation(drop, driver)
                     time.sleep(0.5)
+                else:
+                    # If no match found, try clicking a random/first sane option to avoid red error
+                    if options and len(options) > 0:
+                         print(f"      - No match for '{val}', clicking first option as fallback.")
+                         _stealth_click(options[0], driver)
+                         filled_count += 1
         except Exception:
             continue
 
@@ -226,6 +288,7 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
             if answer:
                 _slow_type(ta, answer)
                 filled_count += 1
+                _trigger_validation(ta, driver)
         except Exception:
             continue
 
@@ -239,6 +302,7 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
             if any(kw in label for kw in agreement_keywords):
                 driver.execute_script("arguments[0].click();", cb)
                 filled_count += 1
+                _trigger_validation(cb, driver)
         except Exception:
             continue
 
@@ -285,10 +349,46 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
                 choice = _answer_question_with_llm(group_label, profile_data, resume_text, is_dropdown=True)
                 if choice and _click_radio_by_text(driver, buttons, choice):
                     filled_count += 1
+                    _trigger_validation(buttons[0], driver)
         except Exception:
             continue
 
+    # 7. Strategic Recovery: Smart AI Analysis (Phase 28: Global Hardening)
+    # If we filled few fields or if we're on a known complex site, run full AI analysis
+    try:
+        if filled_count < 2 or step_is_complex(driver):
+            print("    - Running Smart AI Analysis for complex form structure...")
+            smart_data = smart_analyze_page(driver, profile_data, resume_text)
+            for selector, value in smart_data.items():
+                if not value: continue
+                try:
+                    el = driver.find_element(By.CSS_SELECTOR, selector)
+                    if el.is_displayed() and not el.get_attribute("value"):
+                        print(f"      - AI matched {selector} -> {str(value)[:20]}")
+                        if el.tagName == 'SELECT':
+                            _select_best_option(Select(el), value)
+                        else:
+                            _slow_type(el, value)
+                        _trigger_validation(el, driver)
+                        filled_count += 1
+                except: continue
+    except: pass
+
     return filled_count
+
+def step_is_complex(driver) -> bool:
+    """Detection for complex/non-standard forms that benefit from full AI analysis."""
+    try:
+        # Check for many screening questions or multi-step artifacts
+        questions = driver.find_elements(By.CSS_SELECTOR, "fieldset, legend, .fb-dash-form-element, .jobs-easy-apply-form-element")
+        if len(questions) > 3: return True
+        
+        # Check if the page has many radio/dropdown groups
+        containers = driver.find_elements(By.CSS_SELECTOR, "div.pb4, div.mt2")
+        if len(containers) > 5: return True
+        
+        return False
+    except: return False
 
 def _get_label(element, driver) -> str:
     """Tries various strategies to find the label text for an element."""
@@ -591,3 +691,104 @@ Classification:"""
     except Exception:
         pass
     return None
+
+def _trigger_validation(element, driver):
+    """Triggers standard JavaScript events to ensure frameworks register the field change."""
+    try:
+        driver.execute_script("""
+            var el = arguments[0];
+            var events = ['focus', 'input', 'change', 'blur'];
+            events.forEach(function(e) {
+                var evt = document.createEvent('HTMLEvents');
+                evt.initEvent(e, true, true);
+                el.dispatchEvent(evt);
+            });
+            // Also trigger React/Vue specific setters if possible
+            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value") ? 
+                                         Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set : null;
+            if (nativeInputValueSetter) {
+                nativeInputValueSetter.call(el, el.value);
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        """, element)
+    except: pass
+
+def smart_analyze_page(driver, profile_data, resume_text=""):
+    """
+    Advanced form analysis: scrapes the entire page structure and asks LLM 
+    to map it to specific actions or profile data.
+    Returns a dict of {selector: value} to be applied.
+    """
+    try:
+        # 1. Extract form structure
+        form_elements = driver.execute_script("""
+            var elements = [];
+            var inputs = document.querySelectorAll('input, select, textarea, [role="combobox"]');
+            inputs.forEach(function(el) {
+                if (el.offsetParent === null) return; // Hidden
+                var label = "";
+                var id = el.id;
+                if (id) {
+                    var l = document.querySelector('label[for="' + id + '"]');
+                    if (l) label = l.innerText;
+                }
+                if (!label) label = el.placeholder || el.getAttribute('aria-label') || el.name || "";
+                
+                var options = [];
+                if (el.tagName === 'SELECT') {
+                    for (var i = 0; i < el.options.length; i++) {
+                        options.push(el.options[i].text);
+                    }
+                }
+                
+                elements.push({
+                    id: id,
+                    name: el.name,
+                    tagName: el.tagName,
+                    type: el.type,
+                    label: label.trim(),
+                    options: options,
+                    selector: el.id ? '#' + el.id : '[name="' + el.name + '"]'
+                });
+            });
+            return elements;
+        """)
+        
+        if not form_elements: return {}
+
+        # 2. Ask LLM for mapping
+        prompt = f"""
+        Analyze the following form elements for a global job application and map them to the profile data.
+        
+        Profile Context:
+        Name: {profile_data.get('first_name')} {profile_data.get('last_name')}
+        Title: {profile_data.get('current_title')}
+        Exp: {profile_data.get('total_years')} years
+        Skills: {profile_data.get('technical_skills')}
+        
+        Form Elements:
+        {json.dumps(form_elements, indent=2)}
+        
+        Rules:
+        - Return a JSON object mapping 'selector' to 'value'.
+        - If an element is a dropdown, value MUST be one of the 'options'.
+        - Use professional, concise language for textareas.
+        - Handle regional/international variations (e.g., date formats, currency).
+        - If unsure, return empty string for that selector.
+        
+        JSON Result:"""
+        
+        llm = get_llm()
+        response = llm.generate(prompt, "You are a professional job application form filler specializing in global domains.")
+        
+        # Clean up Markdown blocks if present
+        if "```json" in response:
+            response = response.split("```json")[1].split("```")[0].strip()
+        elif "```" in response:
+            response = response.split("```")[1].split("```")[0].strip()
+            
+        return json.loads(response)
+    except Exception as e:
+        print(f"  [red]Smart Analysis failed: {e}[/]")
+        return {}
+

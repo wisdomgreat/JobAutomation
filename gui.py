@@ -10,6 +10,7 @@ import yaml
 from dotenv import set_key
 import re
 import platform
+import ctypes
 
 def open_path(path):
     """Platform-agnostic file/folder opener."""
@@ -76,10 +77,25 @@ class JobAutomationApp(ctk.CTk):
         self.tracker = Tracker(self.db_path)
 
         # Window Setup
-        self.title("JobBot Sovereign Agent v25.0")
+        self.title("Sovereign Agent v25.0")
         self.geometry("1200x800")
         self.minsize(1000, 700)
         
+        # Set Icons
+        try:
+            icon_path = Path(resource_path("image/favicon.ico"))
+            if icon_path.exists() and platform.system() == "Windows":
+                self.iconbitmap(str(icon_path))
+        except Exception as e:
+            print(f"[UI] Warning: Could not set window icon: {e}")
+
+        # Windows Taskbar Icon Fix
+        if platform.system() == "Windows":
+            try:
+                myappid = 'SovereignAgent.V25.CareerAI'
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception: pass
+
         # Phase 24: Store original stdout to restore on close
         self._old_stdout = sys.stdout
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -97,9 +113,17 @@ class JobAutomationApp(ctk.CTk):
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(10, weight=1) # Spacer
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="SOVEREIGN AGENT", font=ctk.CTkFont(size=22, weight="bold"))
+        # Sidebar Logo & Identity (High-DPI Support)
+        try:
+            from PIL import Image
+            logo_img = Image.open(resource_path("image/logo.png"))
+            self.logo_image = ctk.CTkImage(light_image=logo_img, dark_image=logo_img, size=(180, 180))
+            self.logo_label = ctk.CTkLabel(self.sidebar_frame, image=self.logo_image, text="")
+        except Exception as e:
+            print(f"[UI] Warning: Logo load failed: {e}")
+            self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="SOVEREIGN AGENT", font=ctk.CTkFont(size=22, weight="bold"))
 
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 20))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 10))
 
         # Nav Buttons (Sovereign Executive Style)
         self.dashboard_btn = self._create_nav_btn("🏠 DASHBOARD", 1, self.show_dashboard)
@@ -110,11 +134,11 @@ class JobAutomationApp(ctk.CTk):
         self.support_btn = self._create_nav_btn("🤝 HELP & SUPPORT", 6, self.show_support)
 
         # Live Status Card in Sidebar
-        self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="#1a1a1a", corner_radius=10)
+        self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="#121212", corner_radius=10, border_width=1, border_color="#333")
         self.status_frame.grid(row=11, column=0, padx=20, pady=20, sticky="ew")
         self.status_title = ctk.CTkLabel(self.status_frame, text="SYSTEM STATUS", font=ctk.CTkFont(size=10, weight="bold"))
         self.status_title.pack(pady=(10, 0))
-        self.status_indic = ctk.CTkLabel(self.status_frame, text="● READY", text_color="#2ecc71", font=ctk.CTkFont(weight="bold"))
+        self.status_indic = ctk.CTkLabel(self.status_frame, text="● READY", text_color="#00d4ff", font=ctk.CTkFont(weight="bold"))
         self.status_indic.pack(pady=(0, 10))
 
         # ─── Main Content Area ───
@@ -123,6 +147,7 @@ class JobAutomationApp(ctk.CTk):
         self.dashboard_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.dashboard_frame.grid_columnconfigure(0, weight=4) # Feed
         self.dashboard_frame.grid_columnconfigure(1, weight=3) # Terminal
+        self.dashboard_frame.grid_rowconfigure(0, weight=1) # FIX: Allow expansion
         self._build_dashboard_ui()
 
         # SMART ONBOARDING: If no keys, show settings first
@@ -130,27 +155,24 @@ class JobAutomationApp(ctk.CTk):
             self.after(1000, lambda: self._show_onboarding_alert())
             self.after(1500, lambda: self.select_frame_by_name("Settings"))
 
-    def _show_onboarding_alert(self):
-        print("\n" + "═"*50)
-        print(" 🚀 WELCOME TO SOVEREIGN AGENT")
-        print("" + "═"*50)
-        print(" [SYSTEM] First-run detected. Please configure your")
-        print(" [SYSTEM] API Keys in the 'SYSTEM CORE' tab to begin.")
-        print("═"*50 + "\n")
-
+        # ─── Framework Initialization ───
+        
         # 2. Search Tab Frame
         self.search_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.search_frame.grid_columnconfigure(0, weight=1)
+        self.search_frame.grid_rowconfigure(1, weight=1) 
         self._build_search_ui()
 
         # 3. Assets Frame (Resume Manager)
         self.assets_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.assets_frame.grid_columnconfigure(0, weight=1)
+        self.assets_frame.grid_rowconfigure(2, weight=1)
         self._build_assets_ui()
 
         # 4. Analytics Frame
         self.analytics_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.analytics_frame.grid_columnconfigure(0, weight=1)
+        self.analytics_frame.grid_rowconfigure(1, weight=1) 
         self._build_analytics_ui()
 
         # 5. Settings Frame
@@ -163,8 +185,29 @@ class JobAutomationApp(ctk.CTk):
         self.support_frame.grid_columnconfigure(0, weight=1)
         self._build_support_ui()
 
+        # Set Initial State
         self.select_frame_by_name("Dashboard")
         self.refresh_stats()
+
+        # PHASE 24.5: Delayed Console Redirection (Avoid Deadlock)
+        self.after(3000, self.enable_redirection)
+
+    def enable_redirection(self):
+        """Safely take over stdout once the GUI is stable."""
+        try:
+            if hasattr(self, 'log_box') and self.log_box.winfo_exists():
+                sys.stdout = LogRedirector(self.log_box)
+                print("[System] Console handover complete. Logic stream active.")
+        except Exception as e:
+            print(f"[UI] Redirection failed: {e}")
+
+    def _show_onboarding_alert(self):
+        print("\n" + "═"*50)
+        print(" 🚀 WELCOME TO SOVEREIGN AGENT")
+        print("" + "═"*50)
+        print(" [SYSTEM] First-run detected. Please configure your")
+        print(" [SYSTEM] API Keys in the 'SYSTEM CORE' tab to begin.")
+        print("═"*50 + "\n")
 
     def _create_nav_btn(self, text, row, command):
         btn = ctk.CTkButton(self.sidebar_frame, text=text, fg_color="transparent", text_color=("gray90", "gray90"), 
@@ -189,24 +232,25 @@ class JobAutomationApp(ctk.CTk):
         self.stat_rate = self._create_stat_card(stats_row, "WINS (MATCH RATE)", "0%", 2)
 
         # Buttons
-        self.run_btn = ctk.CTkButton(left_panel, text="⚡ LAUNCH AUTO-PIPELINE", fg_color="#2ecc71", hover_color="#27ae60", height=60, font=ctk.CTkFont(size=16, weight="bold"), command=self.run_pipeline)
+        self.run_btn = ctk.CTkButton(left_panel, text="⚡ LAUNCH AUTO-PIPELINE", fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", height=60, font=ctk.CTkFont(size=16, weight="bold"), command=self.run_pipeline)
         self.run_btn.grid(row=2, column=0, sticky="ew", pady=10)
         self.run_btn.configure(state="disabled") # Locked until legal check
 
         # Job Feed
         self.feed_frame = ctk.CTkScrollableFrame(left_panel, label_text="RECENT MISSIONS", label_font=ctk.CTkFont(weight="bold"), height=400)
         self.feed_frame.grid(row=3, column=0, sticky="nsew", pady=10)
+        left_panel.grid_rowconfigure(3, weight=1)
 
         # RIGHT: Live Terminal
-        right_panel = ctk.CTkFrame(self.dashboard_frame, fg_color="#0d0d0d", corner_radius=15, border_width=1, border_color="#333")
+        right_panel = ctk.CTkFrame(self.dashboard_frame, fg_color="#080808", corner_radius=15, border_width=1, border_color="#333")
         right_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=40)
         right_panel.grid_rowconfigure(1, weight=1)
         right_panel.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(right_panel, text="LIVE OPERATIONS CONSOLE", font=ctk.CTkFont(size=12, weight="bold", family="Consolas"), text_color="#2ecc71").grid(row=0, column=0, pady=10)
-        self.log_box = ctk.CTkTextbox(right_panel, fg_color="transparent", font=ctk.CTkFont(family="Consolas", size=11), text_color="#2ecc71", wrap="word")
+        ctk.CTkLabel(right_panel, text="LIVE OPERATIONS CONSOLE", font=ctk.CTkFont(size=12, weight="bold", family="Consolas"), text_color="#00d4ff").grid(row=0, column=0, pady=10)
+        self.log_box = ctk.CTkTextbox(right_panel, fg_color="transparent", font=ctk.CTkFont(family="Consolas", size=11), text_color="#00d4ff", wrap="word")
         self.log_box.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
-        sys.stdout = LogRedirector(self.log_box)
+        # sys.stdout = LogRedirector(self.log_box) # MOVED to delayed enable_redirection
 
     def _build_assets_ui(self):
         ctk.CTkLabel(self.assets_frame, text="Asset Manager (A/B Testing)", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=(30, 10), sticky="w")
@@ -239,10 +283,9 @@ class JobAutomationApp(ctk.CTk):
                 ctk.CTkButton(row, text="OPEN FOLDER", width=120, height=28, fg_color="#34495e", 
                               command=lambda p=sub: open_path(p)).pack(side="right", padx=5)
                 
-                # Look for PDF
-                pdfs = list(sub.glob("Resume*.pdf"))
+                pdfs = list(sub.glob("*.pdf"))
                 if pdfs:
-                    ctk.CTkButton(row, text="VIEW PDF", width=100, height=28, fg_color="#27ae60",
+                    ctk.CTkButton(row, text="VIEW PDF", width=100, height=28, fg_color="#00d4ff", hover_color="#00a8cc", text_color="black",
                                   command=lambda p=pdfs[0]: open_path(p)).pack(side="right", padx=5)
 
     def _build_analytics_ui(self):
@@ -274,12 +317,12 @@ class JobAutomationApp(ctk.CTk):
         self.search_platform = ctk.CTkOptionMenu(form, values=["LinkedIn", "Indeed", "Both"], width=300)
         self.search_platform.grid(row=2, column=1, padx=20, pady=20, sticky="w")
 
-        self.search_btn_main = ctk.CTkButton(self.search_frame, text="🛰️ INITIATE SCAN", height=60, font=ctk.CTkFont(weight="bold"), command=self.run_semi_auto_search)
+        self.search_btn_main = ctk.CTkButton(self.search_frame, text="🛰️ INITIATE SCAN", height=60, font=ctk.CTkFont(weight="bold"), fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", command=self.run_semi_auto_search)
         self.search_btn_main.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
         self.search_btn_main.configure(state="disabled") # Locked until legal check
 
         # Phase 27.0: Tactical Controls
-        tactical_frame = ctk.CTkFrame(self.search_frame, fg_color="#1a1a1a", corner_radius=15, border_width=1, border_color="#333")
+        tactical_frame = ctk.CTkFrame(self.search_frame, fg_color="#080808", corner_radius=15, border_width=1, border_color="#333")
         tactical_frame.grid(row=4, column=0, padx=30, pady=10, sticky="ew")
         
         ctk.CTkLabel(tactical_frame, text="TACTICAL CONTROLS", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(pady=(10, 5))
@@ -295,7 +338,7 @@ class JobAutomationApp(ctk.CTk):
         
         # Stealth Toggle
         self.stealth_var = ctk.BooleanVar(value=True)
-        self.stealth_toggle = ctk.CTkSwitch(tactical_frame, text="BEHAVIORAL STEALTH (Human Mimicry)", variable=self.stealth_var, progress_color="#2ecc71")
+        self.stealth_toggle = ctk.CTkSwitch(tactical_frame, text="BEHAVIORAL STEALTH (Human Mimicry)", variable=self.stealth_var, fg_color="#00d4ff")
         self.stealth_toggle.pack(pady=10)
 
     def update_match_label(self, val):
@@ -330,7 +373,7 @@ class JobAutomationApp(ctk.CTk):
         ctk.CTkLabel(legal_frame, text="⚠️ LEGAL ACKNOWLEDGEMENT", font=ctk.CTkFont(weight="bold", size=12)).pack(pady=(10, 5))
         ctk.CTkLabel(legal_frame, text="This tool is for educational purposes. I accept full responsibility for all activities\nand acknowledge the risk of account suspension on third-party platforms.", font=ctk.CTkFont(size=11), text_color="gray90").pack(pady=5)
         
-        self.legal_check = ctk.CTkCheckBox(legal_frame, text="I AGREE TO THE TERMS & DISCLAIMER", variable=self.legal_var, command=self.toggle_legal_lock, progress_color="#e74c3c")
+        self.legal_check = ctk.CTkCheckBox(legal_frame, text="I AGREE TO THE TERMS & DISCLAIMER", variable=self.legal_var, command=self.toggle_legal_lock, fg_color="#e74c3c")
         self.legal_check.pack(pady=10)
 
         self.save_btn = ctk.CTkButton(self.settings_frame, text="💾 SAVE SYSTEM CORE", height=50, command=self.save_settings)
@@ -437,7 +480,7 @@ class JobAutomationApp(ctk.CTk):
             meta_label.pack(side="left", padx=5)
 
             # 2. Match Score Badge
-            score_color = "#2ecc71" if app.match_score >= 85 else "#f1c40f" if app.match_score >= 70 else "#e74c3c"
+            score_color = "#00d4ff" if app.match_score >= 85 else "#f1c40f" if app.match_score >= 70 else "#e74c3c"
             score_label = ctk.CTkLabel(row, text=f"{app.match_score}%", text_color=score_color, font=ctk.CTkFont(size=11, weight="bold"), width=35)
             score_label.pack(side="left", padx=2)
             
@@ -447,7 +490,7 @@ class JobAutomationApp(ctk.CTk):
             
             # 4. Action Buttons
             if app.status == "new":
-                ctk.CTkButton(row, text="APPLY NOW", width=80, height=26, fg_color="#27ae60", hover_color="#2ecc71", 
+                ctk.CTkButton(row, text="APPLY NOW", width=80, height=26, fg_color="#00d4ff", hover_color="#00a8cc", text_color="black",
                                font=ctk.CTkFont(size=10, weight="bold"), command=lambda a=app: self.surgical_apply(a)).pack(side="right", padx=5)
             else:
                 ctk.CTkLabel(row, text=app.status.upper(), font=ctk.CTkFont(size=10, weight="bold"), text_color="gray", width=80).pack(side="right", padx=5)

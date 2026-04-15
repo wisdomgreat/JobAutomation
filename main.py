@@ -241,28 +241,28 @@ def run_auto_pipeline(days_back: float = 3):
     consecutive_fails = 0
 
     for i, alert in enumerate(alerts, 1):
-        # Stop trying if LLM is clearly broken (10 fails suggests a major issue)
+        # Stop trying if LLM is clearly broken
         if consecutive_fails >= 10:
             console.print(f"\n  [yellow]LLM appears to be down — skipping remaining {len(alerts) - i + 1} jobs.[/]")
-            console.print(f"  [dim]Fix your LLM config and run option 2 (Generate Docs) later.[/]")
             doc_fail += len(alerts) - i + 1
             break
 
         console.print(f"  [{i}/{len(alerts)}] {alert.job_title[:50]}...", end=" ")
         try:
-            # Re-check status just in case it was updated manually
-            # Skip list/search pages that accidentally got categorized as jobs
-            if any(x in alert.apply_url.lower() for x in ["/search/", "/collections/", "/jobs/search"]):
-                console.print(f"[yellow]skipped (job list page)[/]")
-                app = tracker.find_by_url(alert.apply_url)
-                if app:
-                    tracker.update_status(app.id, "skipped", "Not a single job page")
-                doc_fail += 1 # Count as failed to generate docs for this one
+            app = tracker.find_by_url(alert.apply_url)
+            
+            # Phase 27.2: Skip if docs already exist (Persistence)
+            if app and app.resume_path and Path(app.resume_path).exists():
+                console.print("[blue]using existing docs[/]")
+                doc_success += 1
                 continue
 
-            app = tracker.find_by_url(alert.apply_url)
-            if app and app.status in skip_statuses:
-                console.print("[yellow]skipped (already processed)[/]")
+            # Skip list/search pages 
+            if any(x in alert.apply_url.lower() for x in ["/search/", "/collections/", "/jobs/search"]):
+                console.print(f"[yellow]skipped (job list page)[/]")
+                if app:
+                    tracker.update_status(app.id, "skipped", "Not a single job page")
+                doc_fail += 1
                 continue
 
             paths = generate_documents(
@@ -932,10 +932,12 @@ def action_test_llm():
 def launch_gui():
     """Launch the CustomTkinter desktop interface."""
     console.print("\n[bold cyan]Starting GUI Desktop App...[/]")
+    time.sleep(1) # PRE-LAUNCH BUFFER
     try:
         from gui import JobAutomationApp
         app = JobAutomationApp()
         app.mainloop()
+        time.sleep(1) # POST-CLOSE STABILIZATION
     except ImportError as e:
         console.print(f"[red]Failed to launch GUI: {e}. Ensure 'customtkinter' is installed.[/]")
     except Exception as e:

@@ -52,6 +52,7 @@ class Tracker:
                     return func(*args, **kwargs)
                 raise
         return wrapper
+    
 
     def _init_db(self):
 
@@ -71,8 +72,17 @@ class Tracker:
                     cover_letter_path TEXT DEFAULT '',
                     date_found TEXT DEFAULT '',
                     date_applied TEXT DEFAULT '',
-                    notes TEXT DEFAULT '',
                     match_score INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS failure_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    application_id INTEGER NOT NULL,
+                    failed_at_step INTEGER,
+                    reason TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (application_id) REFERENCES applications (id)
                 )
             """)
             conn.commit()
@@ -124,10 +134,20 @@ class Tracker:
             raise
 
     def _add_logic(self, job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score):
-        # Check for duplicates by URL (silently return existing ID)
+        # 1. Exact URL match (Strongest)
         if apply_url:
             existing = self.find_by_url(apply_url)
             if existing: return existing.id
+
+        # 2. Fuzzy match: Company + Title (Prevents re-applying to same role on different sites)
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.execute(
+                "SELECT id FROM applications WHERE LOWER(job_title) = ? AND LOWER(company) = ?",
+                (job_title.lower(), company.lower())
+            )
+            row = cursor.fetchone()
+            if row:
+                return row[0]
 
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -188,6 +208,17 @@ class Tracker:
         with sqlite3.connect(str(self.db_path)) as conn:
             conn.execute(f"UPDATE applications SET {set_clause} WHERE id = ?", values)
             conn.commit()
+
+    def log_failure_details(self, app_id: int, step: int, reason: str):
+        """Log granular failure details for debug/retry purposes (Phase 28)."""
+        try:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                conn.execute('''
+                    INSERT INTO failure_logs (application_id, failed_at_step, reason, created_at)
+                    VALUES (?, ?, ?, ?)
+                ''', (app_id, step, reason, datetime.now().isoformat()))
+                conn.commit()
+        except Exception: pass
 
     def get(self, app_id: int) -> Optional[Application]:
         """Get a single application by ID."""
