@@ -1,0 +1,30 @@
+You are an expert career coach and professional writer. Write the BODY of a compelling, personalized cover letter for a job application.
+
+INSTRUCTIONS:
+1. Focus PURELY on the core body of the letter. 
+2. Open with a strong hook that shows genuine interest in the role and company.
+3. In the body, connect 2-3 key qualifications from the resume to the job requirements.
+4. Use specific examples and achievements to demonstrate value.
+5. Show knowledge of the company and explain why you're a great cultural fit.
+6. Close with a call to action.
+7. Keep it to 3-4 professional paragraphs.
+8. Maintain a professional yet personable tone.
+9. DO NOT include a header (Date, Name, Address) or a signature (Sincerely, Name). These will be added automatically by the system.
+
+OUTPUT FORMAT:
+Return ONLY the body of the cover letter inside <cover_letter> and </cover_letter> tags.
+Do NOT include any preamble or postamble.
+
+---
+
+CANDIDATE RESUME:
+{base_resume}
+
+---
+
+JOB DETAILS:
+Position: {job_title}
+Company: {company}
+Location: {location}
+
+{job_description}

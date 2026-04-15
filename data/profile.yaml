@@ -1,0 +1,61 @@
+personal:
+  first_name: Wisdom
+  middle_name: ''
+  last_name: Salami
+  preferred_name: ''
+  email: wisdom_borntobegreat@yahoo.com
+  phone: '2263498291'
+  phone_prefix: '1'
+  phone_type: Mobile
+  address: 'Bradford ON'
+  address_2: ''
+  city: Bradford
+  province: Ontario
+  postal_code: ''
+  country: Canada
+  linkedin_url: https://www.linkedin.com/in/wisdomsalami/
+  github_url: ''
+  portfolio_url: ''
+  twitter_url: ''
+work_authorization:
+  authorized_to_work: true
+  sponsorship_needed: false
+  work_permit_type: None
+preferences:
+  willing_to_relocate: true
+  salary_expectation: Open to discussion
+  salary_range: ''
+  notice_period: Immediately
+  start_date: Immediately
+  work_type: Full-time
+  remote_preference: Remote
+  travel_percent: 0%
+experience:
+  total_years: 15
+  current_title: Consultant IT
+  summary: I am a Dynamic IT professional with 15+ years of experience implementing,
+    managing, and supporting enterprise IT systems with a focus on identity management,
+    Microsoft 365 services, and cloud infrastructure. Proven track record of leading
+    technical implementations, providing escalation support, and managing user access
+    across multiple platforms.
+education:
+  highest_degree: Bachelor's
+  entries:
+  - degree: ''
+    school: ''
+    field: ''
+    year: ''
+skills:
+  technical: ''
+  soft: ''
+languages:
+  primary: English
+  others: ''
+professional:
+  security_clearance: None
+  referred_by: LinkedIn
+demographics:
+  gender: Decline to self-identify
+  ethnicity: Decline to self-identify
+  veteran: No
+  disability: No

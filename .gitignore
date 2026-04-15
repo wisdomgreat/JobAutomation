@@ -1,0 +1,48 @@
+# Environment & secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project data
+data/applications.db
+data/tracker.db
+data/browser_sessions/
+output/
+debug_info/
+
+# AI Agent logs
+.gemini/
+.agent/
+.braid/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build & Dist
+dist/
+build/
+*.spec
+*.exe
+SovereignAgent
+venv_build/
+
+# Temporary
+debug/
+output/
+tmp/
+test_output/
