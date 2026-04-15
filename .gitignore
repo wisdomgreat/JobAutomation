@@ -1,50 +1,61 @@
-# Environment & secrets
-.env
+# --- Sovereign Agent: Privacy Shield .gitignore ---
 
-# Python
+# Environment & Private Keys
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# Python / Environment
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
-dist/
-build/
 venv/
 .venv/
+node_modules/
+.python-version
+.pytest_cache/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# User Data & Private Assets (Mission Critical Privacy)
+# ALL files in data/ are excluded except for .example files or the folder itself
+data/*
+!data/.gitkeep
+!data/*.example
+!data/README.md
 
-# Project data
-data/applications.db
-data/tracker.db
-data/browser_sessions/
-output/
-debug_info/
-
-# AI Agent logs
-.gemini/
-.agent/
-.braid/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build & Dist
+# Build & Release Artifacts
 dist/
 build/
 *.spec
 *.exe
+*.bin
 SovereignAgent
 venv_build/
 
-# Temporary
-debug/
-output/
-tmp/
-test_output/
-scratch/
+# IDE / Project Config
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# Runtime Debris & Logs
 logs/
+debug/
+tmp/
+output/
+scratch/
+test_output/
+.agent/
+.gemini/
+.braid/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# UI Guide & Temporary Assets
+image/GUIDE_AI/
+image/temp/
