@@ -10,7 +10,7 @@
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
-AppId={{D37F2A28-4E8E-4A42-B9E4-D16A42CEB3F1}
+AppId={D37F2A28-4E8E-4A42-B9E4-D16A42CEB3F1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -66,7 +66,7 @@ begin
   if not UninstallSilent then
   begin
     PageText := TNewStaticText.Create(UninstallProgressForm);
-    PageText.Parent := UninstallProgressForm.Bevel;
+    PageText.Parent := UninstallProgressForm.InnerPage;
     PageText.Left := ScaleX(20);
     PageText.Top := UninstallProgressForm.Bevel.Height - ScaleY(60);
     PageText.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
@@ -74,7 +74,7 @@ begin
     PageText.Font.Style := [fsBold];
 
     PurgeCheckBox := TNewCheckBox.Create(UninstallProgressForm);
-    PurgeCheckBox.Parent := UninstallProgressForm.Bevel;
+    PurgeCheckBox.Parent := UninstallProgressForm.InnerPage;
     PurgeCheckBox.Left := ScaleX(20);
     PurgeCheckBox.Top := UninstallProgressForm.Bevel.Height - ScaleY(40);
     PurgeCheckBox.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
