@@ -1,50 +1,49 @@
-# 🌬️ Sovereign Agent: Escape the Hiring Treadmill
+# 🚀 Sovereign Agent: Public Launch Guide
 
-Welcome to the future of job seeking. **Sovereign Agent** is not just another bot—it's your personal recruitment executive, designed to handle the repetitive, soul-crushing parts of job hunting with human-like precision and AI-driven intelligence.
+Welcome to the Sovereign Agent. This guide will help you get set up and start applying to jobs in less than 5 minutes.
 
-## 🌟 Why Sovereign?
+## 📥 Step 1: Download & Install
 
-Most job bots are "dumb" script-injectors that get you banned. Sovereign is different:
-- **Stealth Engine**: Mimics organic human behavior (scrolling, reading pauses, randomized typing).
-- **Hyper-Tailored**: Uses LLMs (Gemini, GPT-4, Claude) to rewrite every resume and cover letter for *that specific* job.
-- **Privacy First**: Your credentials stay on your machine. You control the keys.
-- **Multi-Platform**: Seamless automation for LinkedIn and Indeed.
-
-## 🚀 Quick Start (Public v25.0)
-
-### 1. The Dashboard (GUI)
-Launch the executive dashboard to manage your mission:
-```powershell
-python gui.py
-```
-Or, if you downloaded the binary:
-Run `SovereignAgent.exe`.
-
-### 2. Configure Your Intel
-- **LLM**: Connect your brain. We recommend **OpenRouter** (for Gemini 2.0 Flash - it's fast and free/cheap).
-- **Profile**: Import your base resume. The agent will extract your skills automatically.
-- **Logins**: Add your LinkedIn/Indeed credentials (encrypted locally).
-
-### 3. Start the Hunt
-- **Direct Search**: Tell the agent what you want (e.g., "Cloud Architect, Remote").
-- **Automatic Deployment**: The agent will find the jobs, tailor your documents, and apply while you grab a coffee.
+### For Windows Users (Recommended)
+1.  Go to the **[Latest Releases](https://github.com/wisdomgreat/JobAutomation/releases/latest)** page.
+2.  Download the file named `SovereignAgent.exe`.
+3.  Move it to a folder on your computer (like your Documents folder).
+4.  **Double-click** the file to launch. 
+    *Note: Since this is a niche tool, Windows might show a "Protected your PC" warning. Click "More Info" and then "Run Anyway."*
 
 ---
 
-## 🛡️ Ethics & Safety
-This tool is built for **Sovereignty**. 
-- Never spam. 
-- Use high "Match Score" thresholds (we recommend 75%+) to ensure you only apply to jobs you actually want.
-- Respect the platforms—our stealth engine is good, but your account's health is your responsibility.
+## ⚙️ Step 2: The Onboarding Wizard
+
+When you first open the app, it will guide you through the **Settings** tab:
+
+1.  **AI Power**: You will need an API key (like OpenAI or OpenRouter). Paste your key into the corresponding box in the **System Core** tab and click **SAVE**.
+2.  **Target Profiles**: Tell the app what roles you are looking for (e.g., "Project Manager, SaaS Sales").
+3.  **Resume Template**: Ensure you have a base resume in your folder. The agent will use this as a "Master" to create tailored versions.
 
 ---
 
-## 🛠️ Common Gotchas (Troubleshooting)
+## 🎯 Step 3: Your First Mission
 
-- **Chrome Required**: Sovereign uses your local Chrome browser to ensure stealth. Make sure you have the latest version of Google Chrome installed.
-- **API Keys**: The bot is "bring your own brain." It won't work without an LLM key (like OpenRouter or OpenAI).
-- **Windows Defender / Antivirus**: Standalone Python EXEs sometimes trigger "Untrusted Developer" warnings. This is normal for open-source tools—you may need to click "Run anyway" or add an exclusion.
-- **Headless Mode**: If you want to *watch* the bot work, set `HEADLESS_BROWSER=false` in your `.env`.
+1.  Go to the **Target Scan** tab.
+2.  Enter your "Job Title" and "Location" (e.g., "Remote" or "New York").
+3.  Select your platform (LinkedIn or Indeed).
+4.  Click **⚡ INITIATE SCAN**.
+5.  Watch the **Live Console** as the Agent finds jobs, calculates your match score, and prepares your documents.
 
 ---
-*Ready to reclaim your time? The hunt begins today.*
+
+## 🛡️ Best Practices & Security
+
+### Why Sovereign is Safe:
+- **Human Mimicry**: The agent doesn't just "click" - it scrolls, pauses, and acts like a real person to protect your accounts from being flagged.
+- **Privacy Lock**: All your passwords and API keys stay on **your** computer. We can never see them.
+- **Surgical Precision**: Use the **Asset Hub** to review every document before it's sent, ensuring you are always represented perfectly.
+
+### Troubleshooting:
+- **App won't open?** Ensure you have an internet connection and have excluded the folder from your Antivirus scan if it's being blocked.
+- **Need help?** Click the **Community & Support** tab inside the app to report a bug or suggest a feature.
+
+---
+
+*Good luck with your search. The Sovereign Agent is working for you.*

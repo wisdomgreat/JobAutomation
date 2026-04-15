@@ -13,24 +13,14 @@ then
     exit 1
 fi
 
-# 2. Create virtual environment
-echo "📦 Creating virtual environment..."
-python3 -m venv venv_build
-source venv_build/bin/activate
+# 2. Setup Environment
+echo "📦 Setting up build environment..."
+python3 -m pip install --upgrade pip
+python3 -m pip install customtkinter pillow pyinstaller selenium webdriver-manager pyyaml python-dotenv
 
-# 3. Install core dependencies
-echo "📥 Installing dependencies..."
-pip install --upgrade pip
-pip install customtkinter selenium webdriver-manager pyyaml python-dotenv pyinstaller
-
-# 4. Execute build engine
+# 3. Execute Unified Build Engine
 echo "🏗️  Launching build engine..."
-python3 package.py
-
-# 5. Cleanup
-echo "🧹 Cleaning up virtual environment..."
-deactivate
-# rm -rf venv_build
+python3 build.py
 
 echo "-------------------------------------------"
 echo "✅ Build Process Finished."

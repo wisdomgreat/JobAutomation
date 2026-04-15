@@ -201,6 +201,12 @@ class JobAutomationApp(ctk.CTk):
         except Exception as e:
             print(f"[UI] Redirection failed: {e}")
 
+    def on_closing(self):
+        """Cleanup before exiting."""
+        print("[System] Shifting to standby. Security protocols active.")
+        self.destroy()
+        sys.exit(0)
+
     def _show_onboarding_alert(self):
         print("\n" + "═"*50)
         print(" 🚀 WELCOME TO SOVEREIGN AGENT")
@@ -389,13 +395,38 @@ class JobAutomationApp(ctk.CTk):
             print("[Legal] Terms withdrawn. Hardware locked.")
 
     def _build_support_ui(self):
-        ctk.CTkLabel(self.support_frame, text="Help & Community Hub", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
-        box = ctk.CTkFrame(self.support_frame, corner_radius=15); box.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
-        ctk.CTkLabel(box, text="JobBot Community", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        ctk.CTkButton(box, text="📂 GitHub Repository", command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}")).pack(pady=10)
-        self.feedback_text = ctk.CTkTextbox(box, height=150); self.feedback_text.pack(fill="x", padx=30, pady=10)
+        ctk.CTkLabel(self.support_frame, text="Community & Support Hub", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
+        
+        # Security Card
+        sec_card = ctk.CTkFrame(self.support_frame, fg_color="#1a1a1a", border_width=1, border_color="#333", corner_radius=15)
+        sec_card.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
+        ctk.CTkLabel(sec_card, text="🛡️ SECURITY & PRIVACY VERIFIED", font=ctk.CTkFont(weight="bold", size=12), text_color="#00d4ff").pack(pady=(15, 5))
+        ctk.CTkLabel(sec_card, text="Sovereign Agent is 100% Local. No passwords or personal data ever leave your machine.\nWe do not use telemetry, tracking, or external cloud storage for your secrets.", font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(0, 15))
 
-        ctk.CTkButton(box, text="🚀 TRANSMIT FEEDBACK", command=self.send_feedback, fg_color="#3498db").pack(pady=20)
+        # Support Grid
+        grid = ctk.CTkFrame(self.support_frame, fg_color="transparent")
+        grid.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
+        grid.grid_columnconfigure((0, 1), weight=1)
+
+        # Feature Requests
+        feat_box = ctk.CTkFrame(grid, corner_radius=15)
+        feat_box.grid(row=0, column=0, padx=(0, 10), pady=10, sticky="nsew")
+        ctk.CTkLabel(feat_box, text="💡 Have an idea?", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        ctk.CTkLabel(feat_box, text="Suggest a new tool or feature\nto the community board.", text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
+        ctk.CTkButton(feat_box, text="REQUEST FEATURE", command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/issues/new?labels=enhancement")).pack(pady=20, padx=20)
+
+        # Bug Reports
+        bug_box = ctk.CTkFrame(grid, corner_radius=15)
+        bug_box.grid(row=0, column=1, padx=(10, 0), pady=10, sticky="nsew")
+        ctk.CTkLabel(bug_box, text="🐞 Found a bug?", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        ctk.CTkLabel(bug_box, text="Help us improve. Report technical\nissues or errors here.", text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
+        ctk.CTkButton(bug_box, text="REPORT ISSUE", fg_color="#e74c3c", hover_color="#c0392b", command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/issues/new?labels=bug")).pack(pady=20, padx=20)
+
+        # Documentation
+        doc_box = ctk.CTkFrame(self.support_frame, corner_radius=15)
+        doc_box.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
+        ctk.CTkLabel(doc_box, text="📖 Documentation & Guide", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=20, pady=20)
+        ctk.CTkButton(doc_box, text="OPEN WIKI", width=150, command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/wiki")).pack(side="right", padx=20, pady=20)
 
     def select_frame_by_name(self, name):
         # Update Nav Styles

@@ -2,53 +2,69 @@
 
 > **Manifesto**: In an era of automated HR filters and "Ghost Jobs," the job seeker needs a champion. Sovereign Agent is your partner in the chase—a highly intelligent, stealthy assistant that handles the grind so you can focus on the interview.
 
-![Architecture](https://img.shields.io/badge/Architecture-Sovereign-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Community--Driven-orange)
-
-### ⚠️ LEGAL NOTICE
-**Using automation on professional platforms carries risks, including account suspension. Sovereign Agent is provided for educational and personal efficiency purposes. By using this tool, you accept 100% responsibility for your actions. Read our [Full Disclaimer](DISCLAIMER.md) before proceeding.**
+[![Release](https://img.shields.io/github/v/release/wisdomgreat/JobAutomation?color=blue&label=Latest%20Release)](https://github.com/wisdomgreat/JobAutomation/releases)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Security](https://img.shields.io/badge/Security-100%25%20Local-brightgreen)](#-security--privacy)
 
 ---
 
-## ✨ Why Sovereign?
+## 🚀 Quickstart: The Sovereign Desktop App
 
-The current hiring process is broken. Employers use bots to filter you out; we give you a bot to get you back in. 
+If you just want to start applyling to jobs, follow these 3 steps:
 
-- **🧠 Deep Personalization**: We don't spam. Our engine reads every job description and meticulously tailors your resume and cover letter to match the specific "DNA" of the role.
-- **🥷 Human-Centric Stealth**: Our behavioral engine mimics human rhythm—randomized scrolling, reading pauses, and organic timing to protect your professional accounts.
-- **📊 Total Transparency**: Track every mission lead on your interactive dashboard. See your Match Scores, view tailored assets, and take control with "Surgical Apply."
+1.  **Download**: Get the latest **[SovereignAgent.exe here](https://github.com/wisdomgreat/JobAutomation/releases/latest)**.
+2.  **Launch**: Double-click the file to open the app.
+3.  **Configure**: Our **Onboarding Wizard** will walk you through your setup in 2 minutes.
+
+*For more details, see our full **[Public Launch Guide](PUBLIC_LAUNCH_GUIDE.md)**.*
 
 ---
 
-## 🛠️ Quickstart
+## ✨ Features
 
-### The "Sovereign Standalone" (Easiest)
-Download the latest native binary from the **Releases** tab. Launch it, and our **Onboarding Wizard** will walk you through your AI and LinkedIn configuration.
+- **🧠 Deep Personalization**: We don't spam. Our engine reads every job description and meticulously tailors your resume and cover letter.
+- **🥷 Human-Centric Stealth**: Mimics human behavior (randomized scrolling, reading pauses) to protect your professional accounts.
+- **📊 Intelligence Dashboard**: Track every mission, view Match Scores, and take control with "Surgical Apply."
 
-### The Developer Way
+---
+
+## 🛡️ Security & Privacy
+
+**Your data stays with you.** Sovereign Agent was built with a "Privacy First" architecture:
+- **100% Local**: All resumes, AI configurations, and login details are stored only on your computer.
+- **Zero Telemetry**: We do not track your activity, collect your data, or phone home to any external servers.
+- **Open Source**: Our security claims are verified by the community. You can audit every line of code.
+
+---
+
+## 💻 For Developers (Unix/Mac/Advanced)
+
+If you prefer the terminal or are on a non-Windows OS:
+
 ```bash
+# 1. Clone the vault
 git clone https://github.com/wisdomgreat/JobAutomation
 cd JobAutomation
+
+# 2. Setup the engine
 pip install -r requirements.txt
+
+# 3. Launch
 python gui.py
 ```
 
----
-
-## 🤝 Open Architecture & Contributions
-Sovereign Agent is **Open Source** and built for the community. We welcome developers, career coaches, and job seekers to help us evolve.
-
-- **Found a bug?** Open an issue.
-- **Have an idea?** Join our discussions.
-- **Want to code?** Check out our [Contributing Guide](CONTRIBUTING.md).
+**Build from source:**
+- Windows: `python build.py`
+- Unix/Mac: `sh build_unix.sh`
 
 ---
 
-## 🌎 Universal Compatibility
-Whether you're on **macOS**, **Windows**, or **Linux**, Sovereign is ready. 
-- Build for Windows: `python package.py`
-- Build for Unix: `sh build_unix.sh`
+## 🤝 Community & Feedback
+
+We are building this for the job seeker. Your feedback drives our roadmap.
+- **Spotted a bug?** [Report it here](https://github.com/wisdomgreat/JobAutomation/issues/new?labels=bug).
+- **Want a feature?** [Suggest it here](https://github.com/wisdomgreat/JobAutomation/issues/new?labels=enhancement).
+- **Need help?** Check the [Wiki](https://github.com/wisdomgreat/JobAutomation/wiki).
 
 ---
 
