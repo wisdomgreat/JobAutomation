@@ -18,6 +18,8 @@ from thefuzz import fuzz
 import re
 import config
 from src.llm_provider import get_llm
+from src.notifier import notify
+from src.tracker import Tracker
 
 
 @dataclass
@@ -588,6 +590,70 @@ class EmailScanner:
 
         unique_alerts.sort(key=lambda a: a.match_score, reverse=True)
         return unique_alerts
+
+    def check_for_outreach(self) -> int:
+        """
+        Scans for recruiter outreach and interview requests.
+        Logs detections to Tracker and sends Desktop Notifications.
+        Returns the number of NEW outreach messages detected.
+        """
+        print("🔍 Scanning for Recruiter Intelligence...")
+        if not self.connection:
+            if not self.connect(): return 0
+            
+        tracker = Tracker()
+        new_count = 0
+        
+        # Keywords that signal a human recruiter reaching out
+        RECRUITER_KEYWORDS = [
+            "interview", "talk with", "phone screen", "availability", 
+            "next steps", "hiring", "met with", "recruiter", 
+            "meeting invitation", "schedule a time"
+        ]
+        
+        try:
+            self.connection.select("INBOX")
+            # Scan last 100 emails regardless of source (Recruiters use personal/company email)
+            status, message_ids = self.connection.search(None, "ALL")
+            if status != "OK" or not message_ids[0]: return 0
+            
+            ids = message_ids[0].split()[-50:] # Focus on the absolute latest
+            existing_outreach = [o['subject'] for o in tracker.get_outreach()]
+
+            for msg_id in ids:
+                status, msg_data = self.connection.fetch(msg_id, "(RFC822)")
+                if status != "OK": continue
+                
+                msg = email.message_from_bytes(msg_data[0][1])
+                subject = self._decode_header_value(msg.get("Subject", ""))
+                from_addr = self._decode_header_value(msg.get("From", ""))
+                
+                # Deduplication check
+                if subject in existing_outreach: continue
+                
+                body = self._extract_body_text(msg) or self._extract_body_html(msg)
+                body_lower = body.lower()
+                
+                # Score evidence of outreach
+                matches = [kw for kw in RECRUITER_KEYWORDS if kw in body_lower or kw in subject.lower()]
+                
+                if matches:
+                    print(f"  ✨ Recruiter Outreach Detected: {subject}")
+                    
+                    # Sentiment check (rudimentary)
+                    sentiment = "positive" if "congratulations" in body_lower or "excited" in body_lower else "neutral"
+                    
+                    # Log to database
+                    tracker.log_outreach(None, from_addr, subject, body[:1000], sentiment)
+                    
+                    # Send Mission Alert (Desktop Notification)
+                    notify("MISSION ALERT: Recruiter Outreach", f"{from_addr}: {subject}")
+                    new_count += 1
+
+            return new_count
+        except Exception as e:
+            print(f"  [!] Outreach scan error: {e}")
+            return 0
 
 
 if __name__ == "__main__":

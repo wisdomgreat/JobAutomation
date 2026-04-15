@@ -124,12 +124,17 @@ def tailor_resume(
 
 
     llm = get_llm()
-    print(f"  ⚙ Tailoring resume with {config.LLM_PROVIDER}...")
+    print(f"  ⚙ Performing Surgical Experience Surgery with {config.LLM_PROVIDER}...")
 
-    result = llm.generate(
-        prompt,
-        system_prompt="You are a premium career coach. Output ONLY the tailored resume in markdown inside <resume> tags. Use professional headers (##) and bullets (•)."
+    # The Surgical Prompt: Specifically refining experience bullet points
+    system_msg = (
+        "You are an Elite Career Surgeon. Your job is to rewrite the EXPERIENCE section of the resume "
+        "to perfectly match the Job Description. Use the exact keywords 'vibe' and terminology of the JD. "
+        "Highlight achievements that matter to THIS employer. Output ONLY the tailored resume in markdown "
+        "inside <resume> tags. Keep all personal info and contact details as provided."
     )
+
+    result = llm.generate(prompt, system_prompt=system_msg)
     return _extract_content_from_tags(result, "resume")
 
 
@@ -575,12 +580,25 @@ def generate_documents(
     _markdown_to_docx(tailored_resume, paths["resume_docx"], title=resume_name)
     _markdown_to_docx(cover_letter, paths["cover_letter_docx"], title=cl_name)
 
-    # Generate PDF Versions
+    # Save PDF Versions
     try:
         _text_to_pdf(tailored_resume, paths["resume_pdf"])
         _text_to_pdf(cover_letter, paths["cover_letter_pdf"])
     except Exception as e:
         print(f"  ⚠️  PDF Generation Warning: {e}")
+
+    # Phase 28.0: Elite Pruning Logic (Keep last 5 surgical versions)
+    try:
+        resumes = sorted(list(output_parent.glob("Resume*.pdf")), key=os.path.getmtime)
+        if len(resumes) > 5:
+            for old in resumes[:-5]:
+                old.unlink()
+                # Also delete docx
+                docx_counterpart = old.with_suffix(".docx")
+                if docx_counterpart.exists(): docx_counterpart.unlink()
+            print(f"  🧹 Storage Optimized: Pruned legacy surgical versions (Kept last 5).")
+    except Exception as e:
+        print(f"  ⚠️  Pruning Warning: {e}")
 
     return paths
 

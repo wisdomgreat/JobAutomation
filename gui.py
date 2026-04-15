@@ -11,6 +11,11 @@ from dotenv import set_key
 import re
 import platform
 import ctypes
+from config import PROFILE_PATH, PROJECT_ROOT, _get, DATA_DIR, ENV_PATH, BASE_RESUME_PDF, BASE_RESUME_DOCX
+from src.applicant_profile import ApplicantProfile
+import json
+from tkinter import filedialog
+import shutil
 
 def open_path(path):
     """Platform-agnostic file/folder opener."""
@@ -96,9 +101,11 @@ class JobAutomationApp(ctk.CTk):
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception: pass
 
-        # Phase 24: Store original stdout to restore on close
         self._old_stdout = sys.stdout
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Phase 33: TDWAS Onboarding Check
+        self.after(500, self.check_onboarding)
 
 
         # Phase 32: Legal Compliance
@@ -129,9 +136,10 @@ class JobAutomationApp(ctk.CTk):
         self.dashboard_btn = self._create_nav_btn("🏠 DASHBOARD", 1, self.show_dashboard)
         self.search_btn = self._create_nav_btn("🔍 TARGET SCAN", 2, self.show_search)
         self.assets_btn = self._create_nav_btn("📋 ASSET HUB", 3, self.show_assets)
-        self.analytics_btn = self._create_nav_btn("📈 INTELLIGENCE", 4, self.show_analytics)
-        self.settings_btn = self._create_nav_btn("⚙️ SYSTEM CORE", 5, self.show_settings)
-        self.support_btn = self._create_nav_btn("🤝 HELP & SUPPORT", 6, self.show_support)
+        self.crm_btn = self._create_nav_btn("🤝 CANDIDATE CRM", 4, self.show_crm)
+        self.analytics_btn = self._create_nav_btn("📈 INTELLIGENCE", 5, self.show_analytics)
+        self.settings_btn = self._create_nav_btn("⚙️ SYSTEM CORE", 6, self.show_settings)
+        self.support_btn = self._create_nav_btn("🤝 HELP & SUPPORT", 7, self.show_support)
 
         # Live Status Card in Sidebar
         self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="#121212", corner_radius=10, border_width=1, border_color="#333")
@@ -175,7 +183,13 @@ class JobAutomationApp(ctk.CTk):
         self.analytics_frame.grid_rowconfigure(1, weight=1) 
         self._build_analytics_ui()
 
-        # 5. Settings Frame
+        # 4b. CRM Frame (NEW)
+        self.crm_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.crm_frame.grid_columnconfigure(0, weight=1)
+        self.crm_frame.grid_rowconfigure(2, weight=1)
+        self._build_crm_ui()
+
+        # 5. Settings Frame (Sovereign Command Center)
         self.settings_frame = ctk.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
         self.settings_frame.grid_columnconfigure(0, weight=1)
         self._build_settings_ui()
@@ -259,13 +273,55 @@ class JobAutomationApp(ctk.CTk):
         # sys.stdout = LogRedirector(self.log_box) # MOVED to delayed enable_redirection
 
     def _build_assets_ui(self):
-        ctk.CTkLabel(self.assets_frame, text="Asset Manager (A/B Testing)", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=(30, 10), sticky="w")
-        ctk.CTkLabel(self.assets_frame, text="Manage multiple resumes and auto-detect target roles for maximum success.", text_color="gray").grid(row=1, column=0, padx=30, pady=(0, 20), sticky="w")
+        ctk.CTkLabel(self.assets_frame, text="Asset Hub & Identity", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
         
-        # Resume Table (Actual Files from Output)
-        self.asset_scroll = ctk.CTkScrollableFrame(self.assets_frame, height=500)
-        self.asset_scroll.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
-        self.refresh_assets_list()
+        # 1. Identity Status
+        id_frame = ctk.CTkFrame(self.assets_frame, corner_radius=15, border_width=1, border_color="#333")
+        id_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(id_frame, text="👤 AGENT IDENTITY (BRAIN)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
+        
+        # Check if profile is set
+        profile = ApplicantProfile()
+        name = profile.data.get('personal', {}).get('first_name', '') + " " + profile.data.get('personal', {}).get('last_name', '')
+        if not name.strip(): name = "NOT CONFIGURED"
+        
+        ctk.CTkLabel(id_frame, text=f"Active Profile: {name}", text_color="gray").pack()
+        
+        btn_grid = ctk.CTkFrame(id_frame, fg_color="transparent")
+        btn_grid.pack(pady=20, padx=20)
+        ctk.CTkButton(btn_grid, text="📝 EDIT FULL IDENTITY", command=self.open_profile_editor).pack(side="left", padx=10)
+        
+        # 2. Resume Management
+        res_frame = ctk.CTkFrame(self.assets_frame, corner_radius=15)
+        res_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(res_frame, text="📄 RESUME MANAGER", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=10)
+        
+        # Status indicators
+        pdf_status = "✅ BASE_RESUME.PDF (Active)" if BASE_RESUME_PDF.exists() else "❌ PDF NOT FOUND"
+        docx_status = "✅ BASE_RESUME.DOCX" if BASE_RESUME_DOCX.exists() else "❌ DOCX NOT FOUND"
+        ctk.CTkLabel(res_frame, text=f"{pdf_status}\n{docx_status}", text_color="gray", font=ctk.CTkFont(size=11)).pack()
+        
+        up_grid = ctk.CTkFrame(res_frame, fg_color="transparent")
+        up_grid.pack(pady=15)
+        ctk.CTkButton(up_grid, text="📤 UPLOAD PDF", fg_color="#34495e", command=lambda: self.upload_asset("pdf")).pack(side="left", padx=5)
+        ctk.CTkButton(up_grid, text="📤 UPLOAD DOCX", fg_color="#34495e", command=lambda: self.upload_asset("docx")).pack(side="left", padx=5)
+
+    def upload_asset(self, ext):
+        file = filedialog.askopenfilename(title=f"Select Resume ({ext.upper()})", filetypes=[(f"{ext.upper()} files", f"*.{ext}")])
+        if file:
+            try:
+                target = BASE_RESUME_PDF if ext == "pdf" else BASE_RESUME_DOCX
+                shutil.copy2(file, target)
+                print(f"[Assets] Updated {ext.upper()} resume successfully in permanent storage.")
+                self.after(500, self._build_assets_ui) # Refresh
+                self.after(500, self.check_onboarding) # Re-check lock
+            except Exception as e:
+                print(f"[Assets] Upload failed: {e}")
+
+    def open_profile_editor(self):
+        ProfileEditorWindow(self)
 
     def refresh_assets_list(self):
         """Scan output folder for existing resumes."""
@@ -360,14 +416,66 @@ class JobAutomationApp(ctk.CTk):
     def _build_settings_ui(self):
         ctk.CTkLabel(self.settings_frame, text="Core Configuration", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
         
-        # Combined Settings view
+        # 1. AI Intelligence Hub (Dynamic)
+        ai_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15, border_width=1, border_color="#333")
+        ai_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(ai_frame, text="🧠 AI INTELLIGENCE HUB", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
+        
+        # Provider Dropdown
+        prov_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+        prov_frame.pack(fill="x", padx=20, pady=5)
+        ctk.CTkLabel(prov_frame, text="Active Intelligence", width=150, anchor="w").pack(side="left")
+        self.provider_dropdown = ctk.CTkOptionMenu(prov_frame, values=["openai", "gemini", "claude", "groq", "openrouter", "ollama", "lmstudio"], 
+                                                   command=self.on_provider_change)
+        self.provider_dropdown.set(config.LLM_PROVIDER)
+        self.provider_dropdown.pack(side="right", expand=True, fill="x", padx=10)
+        
+        # API Key Field (Shared Entry with Dynamic Placeholder)
+        self.api_key_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+        self.api_key_frame.pack(fill="x", padx=20, pady=15)
+        self.api_key_label = ctk.CTkLabel(self.api_key_frame, text="API Access Key", width=150, anchor="w")
+        self.api_key_label.pack(side="left")
+        self.api_key_entry = ctk.CTkEntry(self.api_key_frame, width=400, show="*")
+        
+        # Map current values to keys
+        current_provider = config.LLM_PROVIDER
+        current_key = ""
+        if current_provider == "openai": current_key = config.OPENAI_API_KEY
+        elif current_provider == "gemini": current_key = config.GEMINI_API_KEY
+        elif current_provider == "openrouter": current_key = config.OPENROUTER_API_KEY
+        elif current_provider == "claude": current_key = config.ANTHROPIC_API_KEY
+        
+        self.api_key_entry.insert(0, str(current_key))
+        self.api_key_entry.pack(side="right", expand=True, fill="x", padx=10)
+
+        # 2. Sovereign Explorer (Directory Access)
+        expl_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15)
+        expl_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
+        ctk.CTkLabel(expl_frame, text="📂 SOVEREIGN EXPLORER", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=20, pady=20)
+        path_text = f"Storage: .../{DATA_DIR.name}"
+        ctk.CTkLabel(expl_frame, text=path_text, text_color="gray").pack(side="left", padx=10)
+        ctk.CTkButton(expl_frame, text="OPEN DATA FOLDER", width=150, fg_color="#34495e", command=lambda: open_path(DATA_DIR)).pack(side="right", padx=20, pady=20)
+
+        # 3. Target Identity & Global Logins
+        ctk.CTkLabel(self.settings_frame, text="Global Platform Credentials", font=ctk.CTkFont(size=14, weight="bold")).grid(row=10, column=0, padx=30, pady=(30, 10), sticky="w")
+        
         self.env_entries = {}
-        keys = ["LLM_PROVIDER", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "LINKEDIN_EMAIL", "YAHOO_EMAIL"]
-        for i, key in enumerate(keys):
+        # We define all necessary credentials here
+        credential_keys = [
+            ("LINKEDIN_EMAIL", "LinkedIn Username"),
+            ("LINKEDIN_PASSWORD", "LinkedIn Password"),
+            ("INDEED_EMAIL", "Indeed Username"),
+            ("INDEED_PASSWORD", "Indeed Password"),
+            ("YAHOO_EMAIL", "Yahoo/Search Email"),
+            ("YAHOO_APP_PASSWORD", "Yahoo App Password")
+        ]
+        
+        for i, (key, label) in enumerate(credential_keys):
             frame = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
-            frame.grid(row=i+1, column=0, padx=30, pady=5, sticky="ew")
-            ctk.CTkLabel(frame, text=key.replace("_", " "), width=200, anchor="w").pack(side="left")
-            entry = ctk.CTkEntry(frame, width=400, show="*" if "KEY" in key else "")
+            frame.grid(row=i+15, column=0, padx=30, pady=5, sticky="ew")
+            ctk.CTkLabel(frame, text=label, width=200, anchor="w").pack(side="left")
+            entry = ctk.CTkEntry(frame, width=400, show="*" if "PASSWORD" in key else "")
             entry.insert(0, str(_get(key)))
             entry.pack(side="right", expand=True, fill="x", padx=10)
             self.env_entries[key] = entry
@@ -427,30 +535,149 @@ class JobAutomationApp(ctk.CTk):
         doc_box.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
         ctk.CTkLabel(doc_box, text="📖 Documentation & Guide", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=20, pady=20)
         ctk.CTkButton(doc_box, text="OPEN WIKI", width=150, command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/wiki")).pack(side="right", padx=20, pady=20)
+        
+        # TDWAS Branding Footer
+        ctk.CTkLabel(self.support_frame, text="© 2026 TDWAS Technology | Sovereign Agent Project", text_color="gray40", font=ctk.CTkFont(size=10)).grid(row=4, column=0, pady=20)
+
+    def on_provider_change(self, provider):
+        """Update placeholder/labels when provider changes."""
+        print(f"[UI] Switching intelligence provider to: {provider}")
+        placeholders = {
+            "openai": "sk-...",
+            "gemini": "AIza...",
+            "openrouter": "sk-or-v1-...",
+            "claude": "sk-ant-...",
+            "groq": "gsk_..."
+        }
+        if provider in ["ollama", "lmstudio"]:
+            self.api_key_entry.configure(placeholder_text="Not required for local AI", state="disabled")
+        else:
+            self.api_key_entry.configure(placeholder_text=placeholders.get(provider, "Enter Key"), state="normal")
+
+    def check_onboarding(self):
+        """Detect first-run state & LOCK UX if not ready."""
+        flag_file = DATA_DIR / ".onboarding_done"
+        profile_ready = ApplicantProfile().data.get('personal', {}).get('first_name', '') != ''
+        resume_ready = BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()
+        
+        if not flag_file.exists() or not profile_ready or not resume_ready:
+            print("[System] SECURITY LOCK: Mandatory Mission Briefing Required.")
+            # Lock UI
+            for btn in [self.dashboard_btn, self.search_btn, self.analytics_btn]:
+                btn.configure(state="disabled")
+            self.run_btn.configure(state="disabled")
+            
+            # Auto-switch to Support or just show wizard
+            self.select_frame_by_name("Support")
+            OnboardingWizard(self)
+        else:
+            # Unlock
+            for btn in [self.dashboard_btn, self.search_btn, self.analytics_btn]:
+                btn.configure(state="normal")
+            self.show_dashboard()
 
     def select_frame_by_name(self, name):
         # Update Nav Styles
-        nav_map = {"Dashboard": self.dashboard_btn, "Search": self.search_btn, "Assets": self.assets_btn, 
-                   "Analytics": self.analytics_btn, "Settings": self.settings_btn, "Support": self.support_btn}
+        nav_map = {
+            "Dashboard": self.dashboard_btn, "Search": self.search_btn, 
+            "Assets": self.assets_btn, "CRM": self.crm_btn,
+            "Analytics": self.analytics_btn, "Settings": self.settings_btn, 
+            "Support": self.support_btn
+        }
         for n, b in nav_map.items():
             b.configure(fg_color="#34495e" if n == name else "transparent", border_width=1 if n == name else 0)
 
         # Swap Frames
-        frame_map = {"Dashboard": self.dashboard_frame, "Search": self.search_frame, "Assets": self.assets_frame,
-                     "Analytics": self.analytics_frame, "Settings": self.settings_frame, "Support": self.support_frame}
+        frame_map = {
+            "Dashboard": self.dashboard_frame, "Search": self.search_frame, 
+            "Assets": self.assets_frame, "CRM": self.crm_frame,
+            "Analytics": self.analytics_frame, "Settings": self.settings_frame, 
+            "Support": self.support_frame
+        }
         for n, f in frame_map.items():
             if n == name:
                 f.grid(row=0, column=1, sticky="nsew")
                 if n == "Dashboard": self.refresh_job_feed()
                 if n == "Analytics": self._draw_analytics_chart()
+                if n == "CRM": self.refresh_crm_feed()
             else: f.grid_forget()
 
     def show_dashboard(self): self.select_frame_by_name("Dashboard")
     def show_search(self): self.select_frame_by_name("Search")
     def show_assets(self): self.select_frame_by_name("Assets")
+    def show_crm(self): self.select_frame_by_name("CRM")
     def show_analytics(self): self.select_frame_by_name("Analytics")
     def show_settings(self): self.select_frame_by_name("Settings")
     def show_support(self): self.select_frame_by_name("Support")
+
+    def _build_crm_ui(self):
+        """Elite Candidate CRM Interface (Phase 28.0)."""
+        ctk.CTkLabel(self.crm_frame, text="Candidate Outreach & CRM", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
+        
+        # Action Bar
+        bar = ctk.CTkFrame(self.crm_frame, fg_color="transparent")
+        bar.grid(row=1, column=0, padx=30, pady=(0, 20), sticky="ew")
+        
+        self.check_crm_btn = ctk.CTkButton(bar, text="🔍 SCAN RECRUITER INTELLIGENCE", fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.run_crm_scan)
+        self.check_crm_btn.pack(side="left", padx=5)
+        
+        # Scrollable CRM Feed
+        self.crm_scroll = ctk.CTkScrollableFrame(self.crm_frame, label_text="DETECTED RECRUITER SIGNALS", label_font=ctk.CTkFont(weight="bold"))
+        self.crm_scroll.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
+        self.crm_frame.grid_rowconfigure(2, weight=1)
+
+    def refresh_crm_feed(self):
+        """Populate the CRM tab with outreach data."""
+        for widget in self.crm_scroll.winfo_children(): widget.destroy()
+        
+        outreach = self.tracker.get_outreach()
+        if not outreach:
+            ctk.CTkLabel(self.crm_scroll, text="No recruiter signals detected yet.", text_color="gray").pack(pady=40)
+            return
+            
+        for i, msg in enumerate(outreach):
+            row = ctk.CTkFrame(self.crm_scroll, fg_color=("#121212" if i % 2 == 0 else "transparent"), corner_radius=10, border_width=1, border_color="#333")
+            row.pack(fill="x", padx=10, pady=5)
+            
+            # Sentiment Badge
+            s_color = "#2ecc71" if msg['sentiment'] == "positive" else "#f1c40f"
+            s_label = ctk.CTkLabel(row, text="●", text_color=s_color, font=ctk.CTkFont(size=20))
+            s_label.pack(side="left", padx=(15, 5))
+            
+            # Header Info
+            info = ctk.CTkFrame(row, fg_color="transparent")
+            info.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+            
+            sender_id = msg['sender'].split("<")[0].strip() if "<" in msg['sender'] else msg['sender'][:25]
+            ctk.CTkLabel(info, text=f"{sender_id} | {msg['date_received']}", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(anchor="w")
+            ctk.CTkLabel(info, text=msg['subject'], font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
+            
+            # Action Buttons
+            ctk.CTkButton(row, text="VIEW THREAD", width=100, height=28, fg_color="#34495e", command=lambda m=msg: self.show_outreach_details(m)).pack(side="right", padx=15)
+
+    def show_outreach_details(self, msg):
+        """Show full email body in a popup."""
+        popup = ctk.CTkToplevel(self)
+        popup.title(f"Recruiter Pulse: {msg['subject']}")
+        popup.geometry("600x500")
+        
+        text = ctk.CTkTextbox(popup, wrap="word", font=("Consolas", 11))
+        text.pack(fill="both", expand=True, padx=20, pady=20)
+        text.insert("0.0", f"FROM: {msg['sender']}\nSUBJECT: {msg['subject']}\nSENTIMENT: {msg['sentiment'].upper()}\n\n" + "═"*50 + "\n\n" + msg['body'])
+        text.configure(state="disabled")
+
+    def run_crm_scan(self):
+        """Manually trigger the Recruiter Intelligence scanner."""
+        self.check_crm_btn.configure(state="disabled", text="SCANNING...")
+        def _run():
+            from src.email_scanner import EmailScanner
+            scanner = EmailScanner()
+            new = scanner.check_for_outreach()
+            print(f"[Intelligence] Scan complete. Found {new} new recruiter signals.")
+            self.after(0, self.refresh_crm_feed)
+            self.after(0, lambda: self.check_crm_btn.configure(state="normal", text="🔍 SCAN RECRUITER INTELLIGENCE"))
+            
+        threading.Thread(target=_run, daemon=True).start()
 
     def _draw_analytics_chart(self):
         """Draw real bar chart from mission data."""
@@ -552,10 +779,30 @@ class JobAutomationApp(ctk.CTk):
         threading.Thread(target=_run, daemon=True).start()
 
     def save_settings(self):
-        env_path = PROJECT_ROOT / ".env"
+        # Update General / Logins
         for k, e in self.env_entries.items():
-            if e.get(): set_key(str(env_path), k, e.get())
-        print("[Core] System configuration synchronized.")
+            if e.get(): set_key(str(ENV_PATH), k, e.get())
+        
+        # Update AI
+        prov = self.provider_dropdown.get()
+        key = self.api_key_entry.get()
+        set_key(str(ENV_PATH), "LLM_PROVIDER", prov)
+        config.LLM_PROVIDER = prov
+        
+        key_map = {
+            "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY", "claude": "ANTHROPIC_API_KEY",
+            "groq": "GROQ_API_KEY"
+        }
+        if prov in key_map:
+            set_key(str(ENV_PATH), key_map[prov], key)
+            setattr(config, key_map[prov], key)
+
+        # Update Local AI URLs
+        if prov == "ollama":
+            set_key(str(ENV_PATH), "OLLAMA_BASE_URL", config.OLLAMA_BASE_URL)
+        
+        print("[Core] TDWAS System configuration synchronized to persistent storage.")
 
     def run_pipeline(self):
         self.status_indic.configure(text="● ACTIVE", text_color="#f1c40f")
@@ -591,6 +838,130 @@ class JobAutomationApp(ctk.CTk):
     def on_closing(self):
         """Restore stdout and close the app."""
         sys.stdout = self._old_stdout
+        self.destroy()
+
+
+class OnboardingWizard(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("TDWAS Sovereign Mission Briefing")
+        self.geometry("700x600")
+        self.transient(parent)
+        self.grab_set()
+        self.parent = parent
+        self.step = 1
+        
+        # UI Setup
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        
+        self.head = ctk.CTkLabel(self, text="MISSION BRIEFING", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00d4ff")
+        self.head.pack(pady=30)
+        
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True, padx=40)
+        
+        self.btn_next = ctk.CTkButton(self, text="NEXT STEP →", height=50, command=self.next_step)
+        self.btn_next.pack(side="bottom", pady=40)
+        
+        self.show_step_1()
+
+    def show_step_1(self):
+        for w in self.content_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.content_frame, text="STEP 1: IDENTITY CORE", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        self.e_name = ctk.CTkEntry(self.content_frame, placeholder_text="First Name", width=300)
+        self.e_name.pack(pady=5)
+        self.e_last = ctk.CTkEntry(self.content_frame, placeholder_text="Last Name", width=300)
+        self.e_last.pack(pady=5)
+
+    def show_step_2(self):
+        for w in self.content_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.content_frame, text="STEP 2: AGENT ASSETS", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        ctk.CTkLabel(self.content_frame, text="Upload your master resume (PDF or DOCX)", text_color="gray").pack()
+        ctk.CTkButton(self.content_frame, text="📂 SELECT RESUME FILE", fg_color="#34495e", command=self.wizard_upload).pack(pady=20)
+        self.upload_status = ctk.CTkLabel(self.content_frame, text="Status: Waiting...", text_color="yellow")
+        self.upload_status.pack()
+
+    def wizard_upload(self):
+        file = filedialog.askopenfilename(title="Select Resume", filetypes=[("Resume", "*.pdf;*.docx")])
+        if file:
+            ext = file.split('.')[-1]
+            target = BASE_RESUME_PDF if ext == "pdf" else BASE_RESUME_DOCX
+            shutil.copy2(file, target)
+            self.upload_status.configure(text="✅ Resume Linked!", text_color="green")
+
+    def show_step_3(self):
+        for w in self.content_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.content_frame, text="STEP 3: INTELLIGENCE Hub", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        self.w_prov = ctk.CTkOptionMenu(self.content_frame, values=["openai", "gemini", "openrouter", "ollama"], width=300)
+        self.w_prov.pack(pady=10)
+        self.w_key = ctk.CTkEntry(self.content_frame, placeholder_text="API Key (Leave blank if Local)", show="*", width=300)
+        self.w_key.pack(pady=5)
+
+    def next_step(self):
+        if self.step == 1:
+            if not self.e_name.get(): return
+            p = ApplicantProfile()
+            p.data['personal']['first_name'] = self.e_name.get()
+            p.data['personal']['last_name'] = self.e_last.get()
+            p.save()
+            self.step = 2
+            self.show_step_2()
+        elif self.step == 2:
+            if not (BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()): return
+            self.step = 3
+            self.show_step_3()
+        elif self.step == 3:
+            set_key(str(ENV_PATH), "LLM_PROVIDER", self.w_prov.get())
+            if self.w_key.get():
+                k_map = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+                if self.w_prov.get() in k_map: set_key(str(ENV_PATH), k_map[self.w_prov.get()], self.w_key.get())
+            
+            (DATA_DIR / ".onboarding_done").touch()
+            self.parent.check_onboarding() # Refresh lock
+            self.destroy()
+
+class ProfileEditorWindow(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Identity Sovereign Editor")
+        self.geometry("800x700")
+        self.profile = ApplicantProfile()
+        
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        self.tabview.add("Personal")
+        self.tabview.add("Experience")
+        self.tabview.add("Skills")
+        
+        # (Simplified for now, will expand to all 90+ fields in full build)
+        p = self.profile.data['personal']
+        self.e_first = self._add_field(self.tabview.tab("Personal"), "First Name", p.get('first_name'), 0)
+        self.e_last = self._add_field(self.tabview.tab("Personal"), "Last Name", p.get('last_name'), 1)
+        self.e_email = self._add_field(self.tabview.tab("Personal"), "Contact Email", p.get('email'), 2)
+        
+        exp = self.profile.data['experience']
+        self.e_title = self._add_field(self.tabview.tab("Experience"), "Current Title", exp.get('current_title'), 0)
+        
+        ctk.CTkButton(self, text="💾 SAVE TO IDENTITY", command=self.save).grid(row=1, column=0, pady=20)
+
+    def _add_field(self, parent, label, val, row):
+        ctk.CTkLabel(parent, text=label).grid(row=row, column=0, padx=10, pady=5)
+        e = ctk.CTkEntry(parent, width=300)
+        e.insert(0, str(val))
+        e.grid(row=row, column=1, padx=10, pady=5)
+        return e
+
+    def save(self):
+        self.profile.data['personal']['first_name'] = self.e_first.get()
+        self.profile.data['personal']['last_name'] = self.e_last.get()
+        self.profile.data['personal']['email'] = self.e_email.get()
+        self.profile.data['experience']['current_title'] = self.e_title.get()
+        self.profile.save()
+        print("[System] Identity updated successfully.")
         self.destroy()
 
 if __name__ == "__main__":

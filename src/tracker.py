@@ -85,6 +85,19 @@ class Tracker:
                     FOREIGN KEY (application_id) REFERENCES applications (id)
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS crm_outreach (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    application_id INTEGER,
+                    sender TEXT,
+                    subject TEXT,
+                    body TEXT,
+                    sentiment TEXT,
+                    date_received TEXT,
+                    action_taken TEXT DEFAULT 'none',
+                    FOREIGN KEY (application_id) REFERENCES applications (id)
+                )
+            """)
             conn.commit()
 
     def _row_to_application(self, row: tuple) -> Application:
@@ -219,6 +232,23 @@ class Tracker:
                 ''', (app_id, step, reason, datetime.now().isoformat()))
                 conn.commit()
         except Exception: pass
+
+    def log_outreach(self, app_id: Optional[int], sender: str, subject: str, body: str, sentiment: str = "neutral"):
+        """Log a detected recruiter message into the CRM."""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("""
+                INSERT INTO crm_outreach (application_id, sender, subject, body, sentiment, date_received)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (app_id, sender, subject, body, sentiment, now))
+            conn.commit()
+
+    def get_outreach(self) -> list[dict]:
+        """Get all recruiter outreach messages for the CRM dashboard."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM crm_outreach ORDER BY date_received DESC")
+            return [dict(row) for row in cursor.fetchall()]
 
     def get(self, app_id: int) -> Optional[Application]:
         """Get a single application by ID."""
