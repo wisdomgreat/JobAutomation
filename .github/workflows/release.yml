@@ -36,15 +36,15 @@ jobs:
       run: iscc SovereignInstaller.iss
 
     - name: "🧹 Stage 3: Generate Portable Asset"
-      run: Compress-Archive -Path dist/SovereignAgent -DestinationPath dist/SovereignAgent_Portable_v25.zip
+      run: Compress-Archive -Path dist/SovereignAgent -DestinationPath dist/SovereignAgent_Portable_v26.zip
 
     - name: "🚀 Launch Sovereign Pro Release"
       uses: softprops/action-gh-release@v2
       with:
         name: Sovereign Agent ${{ github.ref_name }} (TDWAS Pro)
         files: |
-          dist/Sovereign_Agent_Setup_v25.exe
-          dist/SovereignAgent_Portable_v25.zip
+          dist/Sovereign_Agent_Setup_*.exe
+          dist/SovereignAgent_Portable_*.zip
         draft: false
         prerelease: false
       env:

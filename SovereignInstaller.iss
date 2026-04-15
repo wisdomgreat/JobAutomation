@@ -51,6 +51,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 ; The application files are handled by the standard uninstaller.
 ; Data cleanup is handled by the [Code] section below.
+[UninstallDelete]
 Type: filesandordirs; Name: "{app}"
 
 [Code]
