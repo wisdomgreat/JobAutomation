@@ -36,13 +36,13 @@ def update_version_info(info_path, new_version):
     content = info_path.read_text()
     major, minor, patch = map(int, new_version.split('.'))
     
-    # Update tuple formats like: filevers=(26, 0, 0, 0)
-    content = re.sub(r'(filevers=\()[\d,\s]+(\))', rf'\1{major}, {minor}, {patch}, 0\2', content)
-    content = re.sub(r'(prodvers=\()[\d,\s]+(\))', rf'\1{major}, {minor}, {patch}, 0\2', content)
+    # Update tuple formats
+    content = re.sub(r'(filevers=\()[\d,\s]+(\))', rf'\g<1>{major}, {minor}, {patch}, 0\g<2>', content)
+    content = re.sub(r'(prodvers=\()[\d,\s]+(\))', rf'\g<1>{major}, {minor}, {patch}, 0\g<2>', content)
     
-    # Update string structs like: StringStruct(u'FileVersion', u'26.0.0')
-    content = re.sub(r"(StringStruct\(u'FileVersion',\s+u')[^']+(\'\))", rf"\1{new_version}\2", content)
-    content = re.sub(r"(StringStruct\(u'ProductVersion',\s+u')[^']+(\'\))", rf"\1{new_version}\2", content)
+    # Update string structs
+    content = re.sub(r"(StringStruct\(u'FileVersion',\s+u')[^']+(\'\))", rf"\g<1>{new_version}\g<2>", content)
+    content = re.sub(r"(StringStruct\(u'ProductVersion',\s+u')[^']+(\'\))", rf"\g<1>{new_version}\g<2>", content)
     
     info_path.write_text(content)
     print(f"[TXT] Updated {info_path.name}")
