@@ -1,9 +1,11 @@
-name: Sovereign Pro Release Build
+name: Sovereign Pro Automated Release
 
 on:
-  push:
-    tags:
-      - 'v*' # Trigger on version tags like v25.0
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger
 
 permissions:
   contents: write
@@ -11,10 +13,13 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     
     steps:
     - name: 🛰️ Checkout Intelligence Core
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Required to analyze commits for semantic versioning
 
     - name: 🐍 Initialize Python Ecosystem
       uses: actions/setup-python@v5
@@ -28,20 +33,49 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller customtkinter pillow python-dotenv
 
+    - name: 🏷️ Dynamic Versioning (Semantic Intelligence)
+      id: versioning
+      shell: bash
+      run: |
+        # Analyze commit messages to determine bump type
+        # Defaults to 'patch' unless 'feat:' or 'BREAKING CHANGE:' is found in recent commits
+        BUMP_TYPE="patch"
+        if git log -1 --pretty=%B | grep -qiE "feat:|minor:"; then
+          BUMP_TYPE="minor"
+        elif git log -1 --pretty=%B | grep -qiE "BREAKING CHANGE:|major:"; then
+          BUMP_TYPE="major"
+        fi
+        
+        echo "Bump Type Identified: $BUMP_TYPE"
+        python .github/scripts/version_bump.py --type $BUMP_TYPE
+        
+        # Capture the new version for later steps
+        NEW_VER=$(cat VERSION)
+        echo "version=$NEW_VER" >> $GITHUB_OUTPUT
+        echo "NEW_VERSION=$NEW_VER" >> $GITHUB_ENV
+
+    - name: 💾 Commit Version Update
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "chore(release): bump version to ${{ steps.versioning.outputs.version }} [skip ci]"
+        file_pattern: 'VERSION SovereignInstaller.iss file_version_info.txt'
+        tagging_message: 'v${{ steps.versioning.outputs.version }}'
+
     - name: "🏗️ Stage 1: Build Software Engine (PyInstaller)"
       run: python build.py
 
     - name: "🏗️ Stage 2: Compile Professional Installer (Inno Setup)"
-      # ISCC is pre-installed on windows-latest runners
-      run: iscc SovereignInstaller.iss
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" SovereignInstaller.iss
 
     - name: "🧹 Stage 3: Generate Portable Asset"
-      run: Compress-Archive -Path dist/SovereignAgent -DestinationPath dist/SovereignAgent_Portable_v26.zip
+      run: Compress-Archive -Path dist/SovereignAgent -DestinationPath dist/SovereignAgent_Portable_v${{ steps.versioning.outputs.version }}.zip
 
     - name: "🚀 Launch Sovereign Pro Release"
       uses: softprops/action-gh-release@v2
       with:
-        name: Sovereign Agent ${{ github.ref_name }} (TDWAS Pro)
+        name: Sovereign Agent v${{ steps.versioning.outputs.version }} (TDWAS Pro)
+        tag_name: v${{ steps.versioning.outputs.version }}
         files: |
           dist/Sovereign_Agent_Setup_*.exe
           dist/SovereignAgent_Portable_*.zip

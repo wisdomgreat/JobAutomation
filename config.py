@@ -66,7 +66,7 @@ if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
 else:
     # Initialize a clean .env from example if it doesn't exist
-    example_env = APP_ROOT / ".env.example"
+    example_env = PROJECT_ROOT / ".env.example"
     if example_env.exists():
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH)
