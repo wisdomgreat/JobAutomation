@@ -10,7 +10,7 @@
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
-AppId={D37F2A28-4E8E-4A42-B9E4-D16A42CEB3F1}
+AppId={{D37F2A28-4E8E-4A42-B9E4-D16A42CEB3F1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -68,8 +68,8 @@ begin
     PageText := TNewStaticText.Create(UninstallProgressForm);
     PageText.Parent := UninstallProgressForm;
     PageText.Left := ScaleX(20);
-    PageText.Top := UninstallProgressForm.ProgressBar.Top + UninstallProgressForm.ProgressBar.Height + ScaleY(10);
-    PageText.Width := UninstallProgressForm.ProgressBar.Width;
+    PageText.Top := UninstallProgressForm.ProgressBar.Top + UninstallProgressForm.ProgressBar.Height + ScaleY(15);
+    PageText.Width := UninstallProgressForm.ClientWidth - ScaleX(40);
     PageText.Caption := 'Sovereign Intelligence Purge:';
     PageText.Font.Style := [fsBold];
 
