@@ -68,16 +68,16 @@ begin
     PageText := TNewStaticText.Create(UninstallProgressForm);
     PageText.Parent := UninstallProgressForm;
     PageText.Left := ScaleX(20);
-    PageText.Top := UninstallProgressForm.ClientHeight - ScaleY(60);
-    PageText.Width := UninstallProgressForm.ClientWidth - ScaleX(40);
+    PageText.Top := UninstallProgressForm.ProgressBar.Top + UninstallProgressForm.ProgressBar.Height + ScaleY(10);
+    PageText.Width := UninstallProgressForm.ProgressBar.Width;
     PageText.Caption := 'Sovereign Intelligence Purge:';
     PageText.Font.Style := [fsBold];
 
     PurgeCheckBox := TNewCheckBox.Create(UninstallProgressForm);
     PurgeCheckBox.Parent := UninstallProgressForm;
     PurgeCheckBox.Left := ScaleX(20);
-    PurgeCheckBox.Top := UninstallProgressForm.ClientHeight - ScaleY(40);
-    PurgeCheckBox.Width := UninstallProgressForm.ClientWidth - ScaleX(40);
+    PurgeCheckBox.Top := PageText.Top + ScaleY(20);
+    PurgeCheckBox.Width := PageText.Width;
     PurgeCheckBox.Caption := 'Total Purge: Delete all Identity Profile, Resumes, and Application Data';
     PurgeCheckBox.Checked := False;
   end;
