@@ -110,6 +110,19 @@ class JobAutomationApp(ctk.CTk):
         # Phase 32: Legal Compliance
         self.legal_var = ctk.BooleanVar(value=False)
         
+        # Phase 27.2: AI Session Management
+        self.key_visible = False
+        self.provider_keys = {
+            "openai": config.OPENAI_API_KEY,
+            "gemini": config.GEMINI_API_KEY,
+            "claude": config.ANTHROPIC_API_KEY,
+            "groq": config.GROQ_API_KEY,
+            "openrouter": config.OPENROUTER_API_KEY,
+            "ollama": "", # Local
+            "lmstudio": "" # Local
+        }
+        self.last_provider = config.LLM_PROVIDER
+        
         # ─── Layout ───
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -450,6 +463,11 @@ class JobAutomationApp(ctk.CTk):
         
         ctk.CTkLabel(ai_frame, text="🧠 AI INTELLIGENCE HUB", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
         
+        # Phase 27.2: Status Ribbon
+        self.ai_status_ribbon = ctk.CTkLabel(ai_frame, text="", font=ctk.CTkFont(size=10), text_color="gray")
+        self.ai_status_ribbon.pack(pady=(0, 10))
+        self._update_ai_status_ribbon()
+        
         # Provider Dropdown
         prov_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
         prov_frame.pack(fill="x", padx=20, pady=5)
@@ -468,23 +486,25 @@ class JobAutomationApp(ctk.CTk):
         self.model_combo.pack(side="right", expand=True, fill="x", padx=10)
         self._update_model_list(config.LLM_PROVIDER)
         
-        # API Key Field (Shared Entry with Dynamic Placeholder)
+        # API Key Field (Shared Entry with Visibility Toggle)
         self.api_key_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
         self.api_key_frame.pack(fill="x", padx=20, pady=15)
         self.api_key_label = ctk.CTkLabel(self.api_key_frame, text="API Access Key", width=150, anchor="w")
         self.api_key_label.pack(side="left")
-        self.api_key_entry = ctk.CTkEntry(self.api_key_frame, width=400, show="*")
         
-        # Map current values to keys
-        current_provider = config.LLM_PROVIDER
-        current_key = ""
-        if current_provider == "openai": current_key = config.OPENAI_API_KEY
-        elif current_provider == "gemini": current_key = config.GEMINI_API_KEY
-        elif current_provider == "openrouter": current_key = config.OPENROUTER_API_KEY
-        elif current_provider == "claude": current_key = config.ANTHROPIC_API_KEY
+        entry_container = ctk.CTkFrame(self.api_key_frame, fg_color="transparent")
+        entry_container.pack(side="right", expand=True, fill="x", padx=10)
         
-        self.api_key_entry.insert(0, str(current_key))
-        self.api_key_entry.pack(side="right", expand=True, fill="x", padx=10)
+        self.api_key_entry = ctk.CTkEntry(entry_container, show="*")
+        self.api_key_entry.pack(side="left", expand=True, fill="x")
+        self.api_key_entry.bind("<KeyRelease>", self.update_api_key_buffer)
+        
+        self.eye_btn = ctk.CTkButton(entry_container, text="👁️", width=35, height=35, fg_color="transparent", 
+                                     hover_color="#333", command=self.toggle_api_visibility)
+        self.eye_btn.pack(side="right", padx=(5, 0))
+        
+        # Populate current
+        self.api_key_entry.insert(0, str(self.provider_keys.get(config.LLM_PROVIDER, "")))
 
         # 2. Sovereign Explorer (Directory Access)
         expl_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15)
@@ -600,22 +620,61 @@ class JobAutomationApp(ctk.CTk):
         self.model_combo.configure(values=models.get(provider, []))
         self.model_combo.set(self._get_current_model())
 
+    def _update_ai_status_ribbon(self):
+        """Show which providers are currently configured with keys."""
+        ready = []
+        for prov, key in self.provider_keys.items():
+            if prov not in ["ollama", "lmstudio"] and key and len(key) > 5:
+                ready.append(prov.upper())
+        
+        if ready:
+            self.ai_status_ribbon.configure(text=f"CONFIGURED: {' | '.join(ready)}", text_color="#2ecc71")
+        else:
+            self.ai_status_ribbon.configure(text="NO KEYS CONFIGURED (LOCAL ONLY)", text_color="gray")
+
+    def toggle_api_visibility(self):
+        """Toggle mask on API key field."""
+        self.key_visible = not self.key_visible
+        self.api_key_entry.configure(show="" if self.key_visible else "*")
+        self.eye_btn.configure(text="🔒" if self.key_visible else "👁️")
+
+    def update_api_key_buffer(self, event=None):
+        """Sync current entry to buffer in real-time."""
+        prov = self.provider_dropdown.get()
+        if prov not in ["ollama", "lmstudio"]:
+            self.provider_keys[prov] = self.api_key_entry.get()
+            self._update_ai_status_ribbon()
+
     def on_provider_change(self, provider):
-        """Update placeholder/labels when provider changes."""
+        """Phase 27.2: Hybrid Key Management & Persistence."""
+        # 1. Save current key to buffer for the OLD provider first
+        current_key = self.api_key_entry.get()
+        if self.last_provider not in ["ollama", "lmstudio"]:
+            self.provider_keys[self.last_provider] = current_key
+
         print(f"[UI] Switching intelligence provider to: {provider}")
         self._update_model_list(provider)
         
-        placeholders = {
-            "openai": "sk-...",
-            "gemini": "AIza...",
-            "openrouter": "sk-or-v1-...",
-            "claude": "sk-ant-...",
-            "groq": "gsk_..."
-        }
+        # 2. Update Entry State & Value
         if provider in ["ollama", "lmstudio"]:
+            self.api_key_entry.delete(0, "end")
             self.api_key_entry.configure(placeholder_text="Not required for local AI", state="disabled")
         else:
-            self.api_key_entry.configure(placeholder_text=placeholders.get(provider, "Enter Key"), state="normal")
+            self.api_key_entry.configure(state="normal")
+            self.api_key_entry.delete(0, "end")
+            stored_key = self.provider_keys.get(provider, "")
+            self.api_key_entry.insert(0, str(stored_key))
+            
+            placeholders = {
+                "openai": "sk-...",
+                "gemini": "AIza...",
+                "openrouter": "sk-or-v1-...",
+                "claude": "sk-ant-...",
+                "groq": "gsk_..."
+            }
+            self.api_key_entry.configure(placeholder_text=placeholders.get(provider, "Enter Key"))
+        
+        self.last_provider = provider
 
     def check_onboarding(self):
         """Detect first-run state & LOCK UX if not ready."""
@@ -846,32 +905,44 @@ class JobAutomationApp(ctk.CTk):
         for k, e in self.env_entries.items():
             if e.get(): set_key(str(ENV_PATH), k, e.get())
         
-        # Update AI
-        prov = self.provider_dropdown.get()
-        key = self.api_key_entry.get()
-        set_key(str(ENV_PATH), "LLM_PROVIDER", prov)
-        config.LLM_PROVIDER = prov
+        # Phase 27.2: Global AI Persistence
+        # First sync current open field to buffer
+        self.update_api_key_buffer()
         
-        if prov in key_map:
-            set_key(str(ENV_PATH), key_map[prov], key)
-            setattr(config, key_map[prov], key)
+        # Save all buffered keys in one shot
+        key_map = {
+            "openai": "OPENAI_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+            "claude": "ANTHROPIC_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY"
+        }
         
-        # Update Model
-        model = self.model_combo.get()
+        for prov, key_val in self.provider_keys.items():
+            if prov in key_map and key_val:
+                set_key(str(ENV_PATH), key_map[prov], key_val)
+                setattr(config, key_map[prov], key_val)
+        
+        # Update Active Provider & Model
+        active_prov = self.provider_dropdown.get()
+        active_model = self.model_combo.get()
+        set_key(str(ENV_PATH), "LLM_PROVIDER", active_prov)
+        config.LLM_PROVIDER = active_prov
+        
         model_env_map = {
             "openai": "OPENAI_MODEL", "gemini": "GEMINI_MODEL",
             "claude": "ANTHROPIC_MODEL", "groq": "GROQ_MODEL",
             "ollama": "OLLAMA_MODEL", "openrouter": "OPENROUTER_MODEL"
         }
-        if prov in model_env_map:
-            set_key(str(ENV_PATH), model_env_map[prov], model)
-            setattr(config, model_env_map[prov], model)
+        if active_prov in model_env_map:
+            set_key(str(ENV_PATH), model_env_map[active_prov], active_model)
+            setattr(config, model_env_map[active_prov], active_model)
 
         # Update Local AI URLs
-        if prov == "ollama":
+        if active_prov == "ollama":
             set_key(str(ENV_PATH), "OLLAMA_BASE_URL", config.OLLAMA_BASE_URL)
         
-        print("[Core] TDWAS System configuration synchronized to persistent storage.")
+        print("[Core] TDWAS System intelligence synchronized to persistent storage.")
 
     def run_purge(self):
         """Invoke surgical maintenance from GUI."""
