@@ -202,8 +202,8 @@ class JobAutomationApp(ctk.CTk):
         self.select_frame_by_name("Dashboard")
         self.refresh_stats()
 
-        # PHASE 24.5: Delayed Console Redirection (Avoid Deadlock)
-        self.after(3000, self.enable_redirection)
+        # PHASE 24.5: Instant Console Redirection
+        self.after(500, self.enable_redirection)
 
     def enable_redirection(self):
         """Safely take over stdout once the GUI is stable."""
@@ -255,15 +255,24 @@ class JobAutomationApp(ctk.CTk):
         self.stat_recent = self._create_stat_card(stats_row, "LAST 24 HOURS", "0", 1)
         self.stat_rate = self._create_stat_card(stats_row, "WINS (MATCH RATE)", "0%", 2)
 
+        # Scan Lookback Duration (Phase 27.0)
+        lookback_frame = ctk.CTkFrame(left_panel, fg_color="#080808", corner_radius=10, border_width=1, border_color="#333")
+        lookback_frame.grid(row=2, column=0, sticky="ew", pady=(20, 10))
+        self.lookback_label = ctk.CTkLabel(lookback_frame, text="Scan Lookback: 3.0 days", font=ctk.CTkFont(size=11, weight="bold"))
+        self.lookback_label.pack(side="left", padx=20, pady=15)
+        self.lookback_slider = ctk.CTkSlider(lookback_frame, from_=0.1, to=30, number_of_steps=299, command=self.update_lookback_label)
+        self.lookback_slider.set(3.0)
+        self.lookback_slider.pack(side="left", expand=True, fill="x", padx=(0, 20))
+
         # Buttons
         self.run_btn = ctk.CTkButton(left_panel, text="⚡ LAUNCH AUTO-PIPELINE", fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", height=60, font=ctk.CTkFont(size=16, weight="bold"), command=self.run_pipeline)
-        self.run_btn.grid(row=2, column=0, sticky="ew", pady=10)
+        self.run_btn.grid(row=3, column=0, sticky="ew", pady=10)
         self.run_btn.configure(state="disabled") # Locked until legal check
 
         # Job Feed
         self.feed_frame = ctk.CTkScrollableFrame(left_panel, label_text="RECENT MISSIONS", label_font=ctk.CTkFont(weight="bold"), height=400)
-        self.feed_frame.grid(row=3, column=0, sticky="nsew", pady=10)
-        left_panel.grid_rowconfigure(3, weight=1)
+        self.feed_frame.grid(row=4, column=0, sticky="nsew", pady=10)
+        left_panel.grid_rowconfigure(4, weight=1)
 
         # RIGHT: Live Terminal
         right_panel = ctk.CTkFrame(self.dashboard_frame, fg_color="#080808", corner_radius=15, border_width=1, border_color="#333")
@@ -401,6 +410,15 @@ class JobAutomationApp(ctk.CTk):
         self.match_slider = ctk.CTkSlider(slider_frame, from_=0, to=100, number_of_steps=20, command=self.update_match_label)
         self.match_slider.set(config.MATCH_SCORE_THRESHOLD)
         self.match_slider.pack(side="left", expand=True, fill="x", padx=10)
+
+        # Search Intensity Slider (Phase 27.0)
+        intensity_frame = ctk.CTkFrame(tactical_frame, fg_color="transparent")
+        intensity_frame.pack(fill="x", padx=20, pady=5)
+        self.intensity_label = ctk.CTkLabel(intensity_frame, text="Search Intensity: 5 jobs", width=150, anchor="w")
+        self.intensity_label.pack(side="left")
+        self.intensity_slider = ctk.CTkSlider(intensity_frame, from_=1, to=50, number_of_steps=49, command=self.update_intensity_label)
+        self.intensity_slider.set(5)
+        self.intensity_slider.pack(side="left", expand=True, fill="x", padx=10)
         
         # Stealth Toggle
         self.stealth_var = ctk.BooleanVar(value=True)
@@ -410,6 +428,12 @@ class JobAutomationApp(ctk.CTk):
     def update_match_label(self, val):
         config.MATCH_SCORE_THRESHOLD = int(val)
         self.match_label.configure(text=f"Match Intensity: {int(val)}%")
+
+    def update_intensity_label(self, val):
+        self.intensity_label.configure(text=f"Search Intensity: {int(val)} jobs")
+
+    def update_lookback_label(self, val):
+        self.lookback_label.configure(text=f"Scan Lookback: {float(val):.1f} days")
 
     def _create_form_row(self, parent, label, dummy, row):
         ctk.CTkLabel(parent, text=label, width=150, anchor="w").grid(row=row, column=0, padx=20, pady=15)
@@ -468,7 +492,8 @@ class JobAutomationApp(ctk.CTk):
         ctk.CTkLabel(expl_frame, text="📂 SOVEREIGN EXPLORER", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=20, pady=20)
         path_text = f"Storage: .../{DATA_DIR.name}"
         ctk.CTkLabel(expl_frame, text=path_text, text_color="gray").pack(side="left", padx=10)
-        ctk.CTkButton(expl_frame, text="OPEN DATA FOLDER", width=150, fg_color="#34495e", command=lambda: open_path(DATA_DIR)).pack(side="right", padx=20, pady=20)
+        ctk.CTkButton(expl_frame, text="OPEN DATA FOLDER", width=150, fg_color="#34495e", command=lambda: open_path(DATA_DIR)).pack(side="right", padx=(10, 20), pady=20)
+        ctk.CTkButton(expl_frame, text="🧹 PURGE STALE ASSETS", width=150, fg_color="#e74c3c", hover_color="#c0392b", command=self.run_purge).pack(side="right", padx=10, pady=20)
 
         # 3. Target Identity & Global Logins
         ctk.CTkLabel(self.settings_frame, text="Global Platform Credentials", font=ctk.CTkFont(size=14, weight="bold")).grid(row=10, column=0, padx=30, pady=(30, 10), sticky="w")
@@ -848,12 +873,23 @@ class JobAutomationApp(ctk.CTk):
         
         print("[Core] TDWAS System configuration synchronized to persistent storage.")
 
+    def run_purge(self):
+        """Invoke surgical maintenance from GUI."""
+        from src.maintenance import purge_old_outputs
+        try:
+            print("[System] Initiating document purge (Last 14 days safe)...")
+            deleted, space = purge_old_outputs(14)
+            print(f"✓ Success! Removed {deleted} folders, freeing {space} MB.")
+        except Exception as e:
+            print(f"✗ Purge failed: {e}")
+
     def run_pipeline(self):
         self.status_indic.configure(text="● ACTIVE", text_color="#f1c40f")
+        lookback = self.lookback_slider.get()
         def _run():
             from main import run_auto_pipeline
             try: 
-                run_auto_pipeline()
+                run_auto_pipeline(days_back=lookback)
             finally: 
                 # Phase 24.1: Thread-safe UI updates
                 self.after(0, lambda: self.status_indic.configure(text="● READY", text_color="#2ecc71"))
@@ -861,12 +897,19 @@ class JobAutomationApp(ctk.CTk):
         threading.Thread(target=_run, daemon=True).start()
 
     def run_semi_auto_search(self):
-        kw, loc, plat = self.search_keywords.get(), self.search_location.get(), self.search_platform.get().lower()
-        if not kw or not loc: return
+        kw, loc_str, plat = self.search_keywords.get(), self.search_location.get(), self.search_platform.get().lower()
+        if not kw or not loc_str: return
+        
+        # Support multiple locations (Phase 27.0)
+        locations = [l.strip() for l in loc_str.split(",") if l.strip()]
+        if not locations: locations = [loc_str]
+        
+        limit_val = int(self.intensity_slider.get())
+        
         def _run():
             from main import run_search_pipeline
             try: 
-                run_search_pipeline(plat, kw, [loc], limit=5)
+                run_search_pipeline(plat, kw, locations, limit=limit_val)
             finally:
                 # Phase 24.1: Thread-safe UI updates
                 self.after(0, self.refresh_stats)
