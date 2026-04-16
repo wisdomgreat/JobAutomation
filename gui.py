@@ -429,6 +429,15 @@ class JobAutomationApp(ctk.CTk):
                                                    command=self.on_provider_change)
         self.provider_dropdown.set(config.LLM_PROVIDER)
         self.provider_dropdown.pack(side="right", expand=True, fill="x", padx=10)
+
+        # Model Dropdown (ComboBox for custom entry)
+        model_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+        model_frame.pack(fill="x", padx=20, pady=5)
+        ctk.CTkLabel(model_frame, text="Model Identifier", width=150, anchor="w").pack(side="left")
+        
+        self.model_combo = ctk.CTkComboBox(model_frame, values=[], variable=ctk.StringVar(value=self._get_current_model()))
+        self.model_combo.pack(side="right", expand=True, fill="x", padx=10)
+        self._update_model_list(config.LLM_PROVIDER)
         
         # API Key Field (Shared Entry with Dynamic Placeholder)
         self.api_key_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
@@ -538,9 +547,34 @@ class JobAutomationApp(ctk.CTk):
         # TDWAS Branding Footer
         ctk.CTkLabel(self.support_frame, text="© 2026 TDWAS Technology | Sovereign Agent Project", text_color="gray40", font=ctk.CTkFont(size=10)).grid(row=4, column=0, pady=20)
 
+    def _get_current_model(self):
+        p = config.LLM_PROVIDER
+        if p == "openai": return config.OPENAI_MODEL
+        if p == "gemini": return config.GEMINI_MODEL
+        if p == "claude": return config.ANTHROPIC_MODEL
+        if p == "groq": return config.GROQ_MODEL
+        if p == "ollama": return config.OLLAMA_MODEL
+        if p == "openrouter": return config.OPENROUTER_MODEL
+        return "default"
+
+    def _update_model_list(self, provider):
+        models = {
+            "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview"],
+            "gemini": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+            "claude": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-20240229"],
+            "groq": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"],
+            "ollama": ["llama3", "mistral", "phi3", "nomic-embed-text"],
+            "openrouter": ["google/gemini-2.0-flash-001", "anthropic/claude-3.5-sonnet", "deepseek/deepseek-chat"],
+            "lmstudio": ["local-model"]
+        }
+        self.model_combo.configure(values=models.get(provider, []))
+        self.model_combo.set(self._get_current_model())
+
     def on_provider_change(self, provider):
         """Update placeholder/labels when provider changes."""
         print(f"[UI] Switching intelligence provider to: {provider}")
+        self._update_model_list(provider)
+        
         placeholders = {
             "openai": "sk-...",
             "gemini": "AIza...",
@@ -788,14 +822,20 @@ class JobAutomationApp(ctk.CTk):
         set_key(str(ENV_PATH), "LLM_PROVIDER", prov)
         config.LLM_PROVIDER = prov
         
-        key_map = {
-            "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY", "claude": "ANTHROPIC_API_KEY",
-            "groq": "GROQ_API_KEY"
-        }
         if prov in key_map:
             set_key(str(ENV_PATH), key_map[prov], key)
             setattr(config, key_map[prov], key)
+        
+        # Update Model
+        model = self.model_combo.get()
+        model_env_map = {
+            "openai": "OPENAI_MODEL", "gemini": "GEMINI_MODEL",
+            "claude": "ANTHROPIC_MODEL", "groq": "GROQ_MODEL",
+            "ollama": "OLLAMA_MODEL", "openrouter": "OPENROUTER_MODEL"
+        }
+        if prov in model_env_map:
+            set_key(str(ENV_PATH), model_env_map[prov], model)
+            setattr(config, model_env_map[prov], model)
 
         # Update Local AI URLs
         if prov == "ollama":
@@ -916,9 +956,37 @@ class OnboardingWizard(ctk.CTkToplevel):
                 k_map = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
                 if self.w_prov.get() in k_map: set_key(str(ENV_PATH), k_map[self.w_prov.get()], self.w_key.get())
             
+            self.step = 4
+            self.show_step_4()
+        elif self.step == 4:
+            p = ApplicantProfile()
+            p.data['personal']['city'] = self.e_city.get()
+            p.data['personal']['province'] = self.e_prov.get()
+            p.data['experience']['summary'] = self.e_bio.get("0.0", "end").strip()
+            p.save()
+            
             (DATA_DIR / ".onboarding_done").touch()
             self.parent.check_onboarding() # Refresh lock
             self.destroy()
+
+    def show_step_4(self):
+        for w in self.content_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.content_frame, text="STEP 4: MISSION BIO & INTEL", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        
+        self.e_city = ctk.CTkEntry(self.content_frame, placeholder_text="Current City (e.g. Toronto)", width=300)
+        self.e_city.pack(pady=5)
+        self.e_prov = ctk.CTkEntry(self.content_frame, placeholder_text="State/Province (e.g. ON)", width=300)
+        self.e_prov.pack(pady=5)
+        
+        ctk.CTkLabel(self.content_frame, text="Professional Bio / Summary", font=ctk.CTkFont(size=11)).pack(pady=(10, 0))
+        self.e_bio = ctk.CTkTextbox(self.content_frame, height=150, width=400)
+        self.e_bio.pack(pady=10)
+        
+        # Pre-fill if resume extraction worked
+        p = ApplicantProfile()
+        self.e_city.insert(0, p.data['personal'].get('city', ''))
+        self.e_prov.insert(0, p.data['personal'].get('province', ''))
+        self.e_bio.insert("0.0", p.data['experience'].get('summary', ''))
 
 class ProfileEditorWindow(ctk.CTkToplevel):
     def __init__(self, parent):

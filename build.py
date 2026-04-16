@@ -93,7 +93,7 @@ def build():
     except Exception as e:
         safe_print(f"⚠️ Warning: Could not clean build folders: {e}")
     
-    # 3. BUILD 1: Portable Version (OneFile)
+    # 3. BUILD 1: Portable Version (ONEFILE - Single EXE)
     # Using a slightly different name to avoid collision in dist/
     portable_name = f"{APP_NAME}_Portable"
     if run_pyinstaller("--onefile", portable_name):
@@ -102,14 +102,21 @@ def build():
         safe_print("❌ Portable Build Failed.")
         sys.exit(1)
 
-    # 4. BUILD 2: Installer Source (OneDir)
+    # 4. BUILD 2: Debug Version (OneFile + Console)
+    debug_name = f"{APP_NAME}_Debug"
+    if run_pyinstaller("--onefile", debug_name, extra_args=["--console"]):
+        safe_print(f"✅ Debug Build Complete: dist/{debug_name}.exe")
+    else:
+        safe_print("❌ Debug Build Failed.")
+
+    # 5. BUILD 3: Installer Source (OneDir)
     if run_pyinstaller("--onedir", APP_NAME):
         safe_print(f"✅ Installer Assets Complete: dist/{APP_NAME}/")
     else:
         safe_print("❌ Installer Assets Build Failed.")
         sys.exit(1)
 
-    # 5. TRIGGER INNO SETUP (Optional)
+    # 6. TRIGGER INNO SETUP (Optional)
     iss_file = cur_dir / "SovereignInstaller.iss"
     if iss_file.exists() and os.name == "nt":
         safe_print("\n🔨 Attempting to compile Installer (Inno Setup)...")
