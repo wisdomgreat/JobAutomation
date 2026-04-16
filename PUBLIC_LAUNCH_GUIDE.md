@@ -9,7 +9,13 @@ Welcome to the Sovereign Agent. This guide will help you get set up and start ap
 2.  Download the file named `SovereignAgent.exe`.
 3.  Move it to a folder on your computer (like your Documents folder).
 4.  **Double-click** the file to launch. 
-    *Note: Since this is a niche tool, Windows might show a "Protected your PC" warning. Click "More Info" and then "Run Anyway."*
+---
+
+### For Non-Admin Users (Or if Setup fails)
+If you do not have administrator rights or if the installer throws an "Access Denied" error:
+1.  Download the file named `SovereignAgent_Portable.exe` from the **[Latest Releases](https://github.com/wisdomgreat/JobAutomation/releases/latest)**.
+2.  Move it to your **Documents** folder.
+3.  **Double-click** to run. This version does not require installation and stores data safely in your user profile.
 
 ---
 

@@ -37,25 +37,41 @@ If you just want to start applyling to jobs, follow these 3 steps:
 
 ---
 
-## 💻 For Developers (Unix/Mac/Advanced)
+---
 
-If you prefer the terminal or are on a non-Windows OS:
+## 💻 Developer Setup (PyCharm / VS Code / Terminal)
 
+If the Windows installer is failing due to permissions, or if you prefer to run from source, follow these steps:
+
+### 1. Prerequisites
+- **Python 3.10+**: [Download here](https://www.python.org/downloads/) (Ensure "Add Python to PATH" is checked).
+- **Git**: [Download here](https://git-scm.com/downloads).
+
+### 2. Setup (Generic Terminal)
 ```bash
-# 1. Clone the vault
+# Clone the repository
 git clone https://github.com/wisdomgreat/JobAutomation
 cd JobAutomation
 
-# 2. Setup the engine
+# Create a virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\\Scripts\\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# 3. Launch
+# Launch the App
 python gui.py
 ```
 
-**Build from source:**
-- Windows: `python build.py`
-- Unix/Mac: `sh build_unix.sh`
+### 3. Setting up in PyCharm
+1.  **Open Project**: Launch PyCharm and select **Open**. Navigate to the `JobAutomation` folder.
+2.  **Configure Interpreter**:
+    - Go to `File` > `Settings` > `Project: JobAutomation` > `Python Interpreter`.
+    - Click **Add Interpreter** > **Add Local Interpreter**.
+    - Select **Virtualenv Environment** and ensure it's creating a new environment in the project folder.
+3.  **Install Requirements**: PyCharm will likely detect `requirements.txt` and offer to install them. If not, open the **Terminal** tab at the bottom and run `pip install -r requirements.txt`.
+4.  **Run**: Right-click `gui.py` in the project tree and select **Run 'gui'**.
 
 ---
 

@@ -34,6 +34,7 @@ SCRATCH_DIR = BASE_DATA_PATH / "scratch"
 ENV_PATH = BASE_DATA_PATH / ".env"
 
 # Ensure permanent folders exist
+BASE_DATA_PATH.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 SCRATCH_DIR.mkdir(parents=True, exist_ok=True)

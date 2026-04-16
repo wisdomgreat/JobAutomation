@@ -77,12 +77,11 @@ class JobAutomationApp(ctk.CTk):
         super().__init__()
 
         # Sovereign Path Resolution
-        self.db_path = Path(resource_path("data/applications.db"))
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = config.DB_PATH
         self.tracker = Tracker(self.db_path)
 
         # Window Setup
-        self.title("Sovereign Agent v25.0")
+        self.title(f"Sovereign Agent v{config.VERSION}")
         self.geometry("1200x800")
         self.minsize(1000, 700)
         
