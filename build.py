@@ -128,13 +128,14 @@ def build():
         ]
         
         iscc_found = False
+        iscc_cmd = None
         for path in iscc_paths:
             try:
                 subprocess.run([path, "/?"], capture_output=True)
                 iscc_cmd = path
                 iscc_found = True
                 break
-            except: continue
+            except Exception: continue
         
         if iscc_found:
             safe_print(f"📍 Found Inno Setup Compiler: {iscc_cmd}")

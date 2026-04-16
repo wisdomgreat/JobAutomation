@@ -215,8 +215,13 @@ class JobAutomationApp(ctk.CTk):
             print(f"[UI] Redirection failed: {e}")
 
     def on_closing(self):
-        """Cleanup before exiting."""
+        """Restore stdout and safe shutdown."""
         print("[System] Shifting to standby. Security protocols active.")
+        try:
+            if hasattr(self, '_old_stdout'):
+                sys.stdout = self._old_stdout
+        except Exception:
+            pass
         self.destroy()
         sys.exit(0)
 
@@ -874,11 +879,6 @@ class JobAutomationApp(ctk.CTk):
         from src.feedback import send_discord_feedback
         if send_discord_feedback(msg): self.feedback_text.delete("0.0", "end")
 
-    def on_closing(self):
-        """Restore stdout and close the app."""
-        sys.stdout = self._old_stdout
-        self.destroy()
-
 
 class OnboardingWizard(ctk.CTkToplevel):
     def __init__(self, parent):
@@ -901,20 +901,25 @@ class OnboardingWizard(ctk.CTkToplevel):
         self.content_frame.pack(fill="both", expand=True, padx=40)
         
         self.btn_next = ctk.CTkButton(self, text="NEXT STEP →", height=50, command=self.next_step)
-        self.btn_next.pack(side="bottom", pady=40)
+        self.btn_next.pack(side="bottom", pady=(20, 40))
+        
+        self.err_label = ctk.CTkLabel(self, text="", text_color="#e74c3c", font=ctk.CTkFont(size=12, weight="bold"))
+        self.err_label.pack(side="bottom")
         
         self.show_step_1()
 
     def show_step_1(self):
         for w in self.content_frame.winfo_children(): w.destroy()
+        self.err_label.configure(text="")
         ctk.CTkLabel(self.content_frame, text="STEP 1: IDENTITY CORE", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        self.e_name = ctk.CTkEntry(self.content_frame, placeholder_text="First Name", width=300)
+        self.e_name = ctk.CTkEntry(self.content_frame, placeholder_text="First Name *", width=300)
         self.e_name.pack(pady=5)
         self.e_last = ctk.CTkEntry(self.content_frame, placeholder_text="Last Name", width=300)
         self.e_last.pack(pady=5)
 
     def show_step_2(self):
         for w in self.content_frame.winfo_children(): w.destroy()
+        self.err_label.configure(text="")
         ctk.CTkLabel(self.content_frame, text="STEP 2: AGENT ASSETS", font=ctk.CTkFont(weight="bold")).pack(pady=10)
         ctk.CTkLabel(self.content_frame, text="Upload your master resume (PDF or DOCX)", text_color="gray").pack()
         ctk.CTkButton(self.content_frame, text="📂 SELECT RESUME FILE", fg_color="#34495e", command=self.wizard_upload).pack(pady=20)
@@ -931,6 +936,7 @@ class OnboardingWizard(ctk.CTkToplevel):
 
     def show_step_3(self):
         for w in self.content_frame.winfo_children(): w.destroy()
+        self.err_label.configure(text="")
         ctk.CTkLabel(self.content_frame, text="STEP 3: INTELLIGENCE Hub", font=ctk.CTkFont(weight="bold")).pack(pady=10)
         self.w_prov = ctk.CTkOptionMenu(self.content_frame, values=["openai", "gemini", "openrouter", "ollama"], width=300)
         self.w_prov.pack(pady=10)
@@ -938,16 +944,24 @@ class OnboardingWizard(ctk.CTkToplevel):
         self.w_key.pack(pady=5)
 
     def next_step(self):
+        self.err_label.configure(text="")
         if self.step == 1:
-            if not self.e_name.get(): return
-            p = ApplicantProfile()
-            p.data['personal']['first_name'] = self.e_name.get()
-            p.data['personal']['last_name'] = self.e_last.get()
-            p.save()
-            self.step = 2
-            self.show_step_2()
+            if not self.e_name.get():
+                self.err_label.configure(text="⚠️ FIRST NAME IS MANDATORY")
+                return
+            try:
+                p = ApplicantProfile()
+                p.data['personal']['first_name'] = self.e_name.get()
+                p.data['personal']['last_name'] = self.e_last.get()
+                p.save()
+                self.step = 2
+                self.show_step_2()
+            except Exception as e:
+                self.err_label.configure(text=f"❌ FAILED TO SAVE: {str(e)[:40]}")
         elif self.step == 2:
-            if not (BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()): return
+            if not (BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()):
+                self.err_label.configure(text="⚠️ RESUME FILE REQUIRED FOR MISSION")
+                return
             self.step = 3
             self.show_step_3()
         elif self.step == 3:
@@ -959,15 +973,18 @@ class OnboardingWizard(ctk.CTkToplevel):
             self.step = 4
             self.show_step_4()
         elif self.step == 4:
-            p = ApplicantProfile()
-            p.data['personal']['city'] = self.e_city.get()
-            p.data['personal']['province'] = self.e_prov.get()
-            p.data['experience']['summary'] = self.e_bio.get("0.0", "end").strip()
-            p.save()
-            
-            (DATA_DIR / ".onboarding_done").touch()
-            self.parent.check_onboarding() # Refresh lock
-            self.destroy()
+            try:
+                p = ApplicantProfile()
+                p.data['personal']['city'] = self.e_city.get()
+                p.data['personal']['province'] = self.e_prov.get()
+                p.data['experience']['summary'] = self.e_bio.get("0.0", "end").strip()
+                p.save()
+                
+                (DATA_DIR / ".onboarding_done").touch()
+                self.parent.check_onboarding() # Refresh lock
+                self.destroy()
+            except Exception as e:
+                self.err_label.configure(text=f"❌ FAILED TO FINALIZE: {str(e)[:40]}")
 
     def show_step_4(self):
         for w in self.content_frame.winfo_children(): w.destroy()

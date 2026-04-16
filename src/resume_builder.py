@@ -603,9 +603,6 @@ def generate_documents(
     return paths
 
 
-    return paths
-
-
 if __name__ == "__main__":
     config.validate()
     # Quick test with a sample job

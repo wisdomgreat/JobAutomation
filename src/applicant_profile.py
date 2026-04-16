@@ -12,18 +12,17 @@ from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.panel import Panel
 from rich.table import Table
 import config
+from config import PROFILE_PATH, DATA_DIR
 from dotenv import set_key
 from src.llm_provider import get_llm
 
 console = Console()
 
-PROFILE_PATH = Path("data/profile.yaml")
-
 class ApplicantProfile:
     """Manages the applicant profile stored in YAML."""
 
-    def __init__(self, profile_path: Path = PROFILE_PATH):
-        self.profile_path = profile_path
+    def __init__(self, profile_path: Path = None):
+        self.profile_path = profile_path or PROFILE_PATH
         self.data = self._load_default()
         if self.profile_path.exists():
             self.load()

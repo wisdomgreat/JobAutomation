@@ -15,6 +15,7 @@ from datetime import datetime
 import json
 import re
 from typing import Optional
+from urllib.parse import urlparse
 
 # Add project root to path if running directly
 sys.path.append(str(Path(__file__).parent.parent))
@@ -1539,12 +1540,19 @@ _active_bots: dict[str, ApplicantBot] = {}
 
 
 def _get_platform(url: str) -> str:
-    """Identify platform from URL."""
-    url_lower = url.lower()
-    if "indeed.com" in url_lower:
-        return "indeed"
-    elif "linkedin.com" in url_lower:
-        return "linkedin"
+    """Identify platform from URL using robust parsing."""
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Exact domain match or subdomains
+        if domain == "indeed.com" or domain.endswith(".indeed.com"):
+            return "indeed"
+        if domain == "linkedin.com" or domain.endswith(".linkedin.com"):
+            return "linkedin"
+    except Exception:
+        pass
+        
     return "other"
 
 
@@ -1573,7 +1581,8 @@ def quit_all_bots():
     for platform, bot in list(_active_bots.items()):
         try:
             bot.quit()
-        except: pass
+        except Exception:
+            pass
     _active_bots.clear()
 
 

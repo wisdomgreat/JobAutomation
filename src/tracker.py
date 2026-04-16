@@ -348,11 +348,12 @@ class Tracker:
 
 if __name__ == "__main__":
     import tempfile
+    import os
     # Test with a temporary database
-    test_db = Path(tempfile.mktemp(suffix=".db"))
-    print(f"Testing tracker with: {test_db}")
-
-    tracker = Tracker(test_db)
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+        temp_db = Path(tf.name)
+    
+    tracker = Tracker(temp_db)
 
     # Add test applications
     id1 = tracker.add(
