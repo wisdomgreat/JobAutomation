@@ -66,7 +66,7 @@ begin
   if not UninstallSilent then
   begin
     PageText := TNewStaticText.Create(UninstallProgressForm);
-    PageText.Parent := UninstallProgressForm.InnerPage;
+    PageText.Parent := UninstallProgressForm;
     PageText.Left := ScaleX(20);
     PageText.Top := UninstallProgressForm.Bevel.Height - ScaleY(60);
     PageText.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
@@ -74,7 +74,7 @@ begin
     PageText.Font.Style := [fsBold];
 
     PurgeCheckBox := TNewCheckBox.Create(UninstallProgressForm);
-    PurgeCheckBox.Parent := UninstallProgressForm.InnerPage;
+    PurgeCheckBox.Parent := UninstallProgressForm;
     PurgeCheckBox.Left := ScaleX(20);
     PurgeCheckBox.Top := UninstallProgressForm.Bevel.Height - ScaleY(40);
     PurgeCheckBox.Width := UninstallProgressForm.Bevel.Width - ScaleX(40);
