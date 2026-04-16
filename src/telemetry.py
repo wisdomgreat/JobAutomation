@@ -56,9 +56,12 @@ def log_event(event_name, properties=None):
 
     def _send():
         try:
-            requests.post(url, json=payload, headers=headers, timeout=5)
-        except Exception:
-            pass
+            resp = requests.post(url, json=payload, headers=headers, timeout=5)
+            if resp.status_code >= 400:
+                print(f"[Telemetry] Warning: Server rejected data ({resp.status_code})")
+        except Exception as e:
+            if config.TELEMETRY_ENABLED: # Only show if developer wants it
+                print(f"[Telemetry] Syncing failed: {e}")
 
     # Fire and forget in a daemon thread
     threading.Thread(target=_send, daemon=True).start()

@@ -44,9 +44,9 @@ from src.applicant_bot import apply_to_job
 from src.resume_builder import parse_resume
 from datetime import datetime
 
-# Configure CustomTkinter
-ctk.set_appearance_mode("Dark") # Force Premium Dark Mode
-ctk.set_default_color_theme("blue")
+# Phase 27.3: Applied Dynamic Intelligence Styling
+ctk.set_appearance_mode(config.GUI_APPEARANCE_MODE)
+ctk.set_default_color_theme(config.GUI_ACCENT_COLOR)
 
 class LogRedirector:
     """Redirects stdout to the CustomTkinter Textbox."""
@@ -506,9 +506,33 @@ class JobAutomationApp(ctk.CTk):
         # Populate current
         self.api_key_entry.insert(0, str(self.provider_keys.get(config.LLM_PROVIDER, "")))
 
-        # 2. Sovereign Explorer (Directory Access)
+        # 2. Look & Feel (Appearance & Theme)
+        style_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15, border_width=1, border_color="#333")
+        style_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(style_frame, text="🎨 LOOK & FEEL", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
+        
+        # Appearance Mode
+        app_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
+        app_frame.pack(fill="x", padx=20, pady=5)
+        ctk.CTkLabel(app_frame, text="Appearance Mode", width=150, anchor="w").pack(side="left")
+        self.appearance_dropdown = ctk.CTkOptionMenu(app_frame, values=["System", "Dark", "Light"], 
+                                                     command=self.change_appearance_mode)
+        self.appearance_dropdown.set(config.GUI_APPEARANCE_MODE)
+        self.appearance_dropdown.pack(side="right", expand=True, fill="x", padx=10)
+        
+        # Accent Color
+        acc_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
+        acc_frame.pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(acc_frame, text="Accent Color", width=150, anchor="w").pack(side="left")
+        self.accent_dropdown = ctk.CTkOptionMenu(acc_frame, values=["blue", "green", "dark-blue"], 
+                                                 command=self.change_accent_color)
+        self.accent_dropdown.set(config.GUI_ACCENT_COLOR)
+        self.accent_dropdown.pack(side="right", expand=True, fill="x", padx=10)
+
+        # 3. Sovereign Explorer (Directory Access)
         expl_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15)
-        expl_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
+        expl_frame.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
         ctk.CTkLabel(expl_frame, text="📂 SOVEREIGN EXPLORER", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=20, pady=20)
         path_text = f"Storage: .../{DATA_DIR.name}"
         ctk.CTkLabel(expl_frame, text=path_text, text_color="gray").pack(side="left", padx=10)
@@ -619,6 +643,15 @@ class JobAutomationApp(ctk.CTk):
         }
         self.model_combo.configure(values=models.get(provider, []))
         self.model_combo.set(self._get_current_model())
+
+    def change_appearance_mode(self, new_mode):
+        """Phase 27.3: Instant Visual Adaptation."""
+        ctk.set_appearance_mode(new_mode)
+        print(f"[UI] Appearance mode updated to: {new_mode}")
+
+    def change_accent_color(self, new_color):
+        """Phase 27.3: Accent Shift (Requires Restart)."""
+        print(f"[UI] Accent color selection updated to: {new_color}. Restart required for global application.")
 
     def _update_ai_status_ribbon(self):
         """Show which providers are currently configured with keys."""
@@ -906,22 +939,20 @@ class JobAutomationApp(ctk.CTk):
             if e.get(): set_key(str(ENV_PATH), k, e.get())
         
         # Phase 27.2: Global AI Persistence
-        # First sync current open field to buffer
         self.update_api_key_buffer()
-        
-        # Save all buffered keys in one shot
         key_map = {
-            "openai": "OPENAI_API_KEY",
-            "gemini": "GEMINI_API_KEY",
-            "claude": "ANTHROPIC_API_KEY",
-            "groq": "GROQ_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY"
+            "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
+            "claude": "ANTHROPIC_API_KEY", "groq": "GROQ_KEY", "openrouter": "OPENROUTER_API_KEY"
         }
-        
         for prov, key_val in self.provider_keys.items():
             if prov in key_map and key_val:
                 set_key(str(ENV_PATH), key_map[prov], key_val)
                 setattr(config, key_map[prov], key_val)
+        
+        # Phase 27.3: Appearance & Telemetry Persistence
+        set_key(str(ENV_PATH), "GUI_APPEARANCE_MODE", self.appearance_dropdown.get())
+        set_key(str(ENV_PATH), "GUI_ACCENT_COLOR", self.accent_dropdown.get())
+        set_key(str(ENV_PATH), "TELEMETRY_ENABLED", "true") # Force enable as requested
         
         # Update Active Provider & Model
         active_prov = self.provider_dropdown.get()
@@ -938,11 +969,7 @@ class JobAutomationApp(ctk.CTk):
             set_key(str(ENV_PATH), model_env_map[active_prov], active_model)
             setattr(config, model_env_map[active_prov], active_model)
 
-        # Update Local AI URLs
-        if active_prov == "ollama":
-            set_key(str(ENV_PATH), "OLLAMA_BASE_URL", config.OLLAMA_BASE_URL)
-        
-        print("[Core] TDWAS System intelligence synchronized to persistent storage.")
+        print("[Core] TDWAS System synchronized. Performance and aesthetics updated.")
 
     def run_purge(self):
         """Invoke surgical maintenance from GUI."""

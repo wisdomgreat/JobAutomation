@@ -109,8 +109,16 @@ LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
 
 MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
 HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
-TELEMETRY_ENABLED = _get("TELEMETRY_ENABLED", "false").lower() == "true"
+TELEMETRY_ENABLED = _get("TELEMETRY_ENABLED", "true").lower() == "true"
 ACCOUNT_PASSWORD = _get("ACCOUNT_PASSWORD", "JobBotPass!2024")
+
+# Supabase Telemetry (Phase 27.3)
+SUPABASE_URL = _get("SUPABASE_URL", "https://jfjrzejmmfaxhsxnasrq.supabase.co")
+SUPABASE_KEY = _get("SUPABASE_KEY", "sb_publishable_szMT54DD1rtMMp4lW8QlQw_GZCQ5dzB")
+
+# Appearance Settings (Phase 27.3)
+GUI_APPEARANCE_MODE = _get("GUI_APPEARANCE_MODE", "Dark")
+GUI_ACCENT_COLOR = _get("GUI_ACCENT_COLOR", "blue")
 
 # Paths (PRO-PERSISTENT)
 OUTPUT_DIR = BASE_DATA_PATH / "output"
