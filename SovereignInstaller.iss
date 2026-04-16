@@ -28,7 +28,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=dist
-V_6_1_6_0
+OutputBaseFilename=Sovereign_Agent_Setup_v26_6_1
 PrivilegesRequired=admin
 
 [Languages]
