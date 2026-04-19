@@ -27,7 +27,7 @@ def update_iss_file(iss_path, new_version):
     new_content = re.sub(r'(#define MyAppVersion\s+)"[^"]+"', rf'\g<1>"{new_version}"', content)
     # Also update OutputBaseFilename to keep it consistent
     base_version = '.'.join(new_version.split('.')[:2]) # 26.6
-    new_content = re.sub(r'(OutputBaseFilename=Sovereign_Agent_Setup_v)\d+', rf'\g<1>{new_version.replace(".", "_")}', new_content)
+    new_content = re.sub(r'(OutputBaseFilename=Sovereign_Agent_Setup_v).*', rf'\g<1>{new_version.replace(".", "_")}', new_content)
     
     iss_path.write_text(new_content)
     print(f"[ISS] Updated {iss_path.name}")
