@@ -32,6 +32,7 @@ import atexit
 atexit.register(cleanup_bots)  # Always close browsers on exit
 
 console = Console()
+console.print("[bold yellow][System] GUI & Navigation Hotfix v2.0 Applied.[/]")
 tracker = Tracker()
 
 
@@ -634,41 +635,30 @@ def run_search_pipeline(platform: str, keywords: str, locations: list[str], limi
     for location in locations:
         console.print(f"\n  [bold yellow]📍 Location: {location}[/]")
         
-        if platform.lower() in ["linkedin", "both"]:
-            # Phase 25.1: Retry loop for Chrome session conflicts
-            for attempt in range(2):
-                try:
-                    li_bot = LinkedInBot(profile=profile)
-                    results = li_bot.search(keywords, location, limit=limit)
-                    all_jobs.extend(results)
-                    li_bot.quit()
-                    time.sleep(2.0) 
-                    break
-                except Exception as e:
-                    if "session not created" in str(e).lower() and attempt == 0:
-                        quit_all_bots()
-                        time.sleep(3.0)
-                        continue
-                    console.print(f"[red]  LinkedIn search failed for {location}: {e}[/]")
-                    break
-
-        if platform.lower() in ["indeed", "both"]:
-            # Phase 25.1: Retry loop for Chrome session conflicts
-            for attempt in range(2):
-                try:
-                    in_bot = IndeedBot(profile=profile)
-                    results = in_bot.search(keywords, location, limit=limit)
-                    all_jobs.extend(results)
-                    in_bot.quit()
-                    time.sleep(2.0)
-                    break
-                except Exception as e:
-                    if "session not created" in str(e).lower() and attempt == 0:
-                        quit_all_bots()
-                        time.sleep(3.0)
-                        continue
-                    console.print(f"[red]  Indeed search failed for {location}: {e}[/]")
-                    break
+        # Phase 35.2: Unified Platform Iterator
+        # Supported: linkedin, indeed, ziprecruiter, dice, wellfound, builtin
+        target_plats = []
+        if platform.lower() == "both":
+            target_plats = ["linkedin", "indeed"]
+        else:
+            target_plats = [platform.lower()]
+            
+        from src.applicant_bot import get_bot
+        
+        for p in target_plats:
+            # Skip if bot manager doesn't handle it
+            try:
+                # Surgical Fix: get_bot expects (url, platform), profile is handled internally
+                bot = get_bot(f"https://{p}.com", platform=p)
+                if not bot: continue
+                
+                _safe_print(f"  🔍 Searching [cyan]{p}[/] for [cyan]{keywords}[/]...")
+                results = bot.search(keywords, location, limit=limit)
+                all_jobs.extend(results)
+                # Note: We don't quit here, we let the singleton manager handle it or final quit_all
+                _short_delay()
+            except Exception as e:
+                console.print(f"[red]  {p.capitalize()} search failed for {location}: {e}[/]")
 
     # Phase 25.1: Clean up after search as well to release all ports for Step 4
     quit_all_bots()
@@ -908,9 +898,9 @@ def action_test_llm():
         time.sleep(0.5)
         
         # Step 2: Connection
-        progress.update(task1, description=f"  [yellow]Sending test prompt to {provider}...")
+        progress.update(task1, description=f"  [yellow]Connecting to {provider} & loading model...")
         try:
-            llm = get_llm()
+            llm = get_llm(resilient=False)
             start_time = time.time()
             response = llm.generate("Say 'Hello!' in exactly one word. Use no punctuation.", "You are a minimal assistant.")
             elapsed = time.time() - start_time

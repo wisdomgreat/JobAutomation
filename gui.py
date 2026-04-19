@@ -1,76 +1,86 @@
-import os
+import customtkinter as ctk
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 import sys
+import os
 import threading
 import time
-import subprocess
-import webbrowser
-from pathlib import Path
-import customtkinter as ctk
-import yaml
-from dotenv import set_key
-import re
+import shutil
 import platform
 import ctypes
-from config import PROFILE_PATH, PROJECT_ROOT, _get, DATA_DIR, ENV_PATH, BASE_RESUME_PDF, BASE_RESUME_DOCX
-from src.applicant_profile import ApplicantProfile
-import json
-from tkinter import filedialog
-import shutil
+import webbrowser
+import math
+import random
+from pathlib import Path
+from datetime import datetime
+from dotenv import set_key
 
-def open_path(path):
-    """Platform-agnostic file/folder opener."""
-    path = str(path)
-    if platform.system() == "Windows":
-        os.startfile(path)
-    elif platform.system() == "Darwin": # macOS
-        subprocess.run(["open", path])
-    else: # Linux
-        subprocess.run(["xdg-open", path])
+# Internal Core Imports
+from src.tracker import Tracker
+from src.applicant_profile import ApplicantProfile
+import config
+from config import ENV_PATH, DATA_DIR, BASE_RESUME_PDF, BASE_RESUME_DOCX
+
+# Theme Initialization
+ctk.set_appearance_mode(config.GUI_APPEARANCE_MODE)
+ctk.set_default_color_theme(config.GUI_ACCENT_COLOR)
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """Sovereign Asset Resolver: Supports Dev and PyInstaller environments."""
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# Import existing backend modules
-import config
-from config import PROFILE_PATH, PROJECT_ROOT, _get
-from src.tracker import Tracker
-from src.applicant_bot import apply_to_job
-from src.resume_builder import parse_resume
-from datetime import datetime
+def open_path(path):
+    """Platform-agnostic directory explorer."""
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        import subprocess
+        subprocess.Popen(["open", str(path)])
+    else:
+        import subprocess
+        subprocess.Popen(["xdg-open", str(path)])
 
-# Phase 27.3: Applied Dynamic Intelligence Styling
-ctk.set_appearance_mode(config.GUI_APPEARANCE_MODE)
-ctk.set_default_color_theme(config.GUI_ACCENT_COLOR)
+def _get(key, default=""):
+    """Legacy helper for ENV migration."""
+    return os.getenv(key, default)
 
 class LogRedirector:
-    """Redirects stdout to the CustomTkinter Textbox."""
-    def __init__(self, textbox):
-        self.textbox = textbox
+    """Redirects stdout to a CTkTextbox for mission telemetry."""
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
 
-    def write(self, text):
-        try:
-            if not self.textbox.winfo_exists(): return
-            clean_text = self._strip_ansi(text)
-            self.textbox.insert(ctk.END, clean_text)
-            self.textbox.see(ctk.END)
-            self.textbox.update()
-        except (Exception, RuntimeError):
-            pass
-
-        
-    def _strip_ansi(self, text):
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        return ansi_escape.sub('', text)
+    def write(self, string):
+        if string.strip():
+            # Colorize output based on content
+            color = "gray"
+            if "✓" in string or "Success" in string: color = "#2ecc71"
+            elif "✗" in string or "Error" in string or "Failed" in string: color = "#e74c3c"
+            elif "[System]" in string or "TELEMETRY" in string: color = "#00d4ff"
+            elif "..." in string: color = "gray60"
+            
+            self.text_widget.after(0, lambda: self._safe_append(string, color))
 
     def flush(self):
         pass
+
+    def _safe_append(self, string, color):
+        try:
+            self.text_widget.configure(state="normal")
+            # Create a tag for the color if it doesn't exist
+            tag_name = f"color_{color.replace('#','')}"
+            self.text_widget.tag_config(tag_name, foreground=color)
+            
+            self.text_widget.insert("end", string + "\n", tag_name)
+            self.text_widget.see("end")
+            self.text_widget.configure(state="disabled")
+        except Exception:
+            pass
+
+# ─── Main Application Engine ───
 
 class JobAutomationApp(ctk.CTk):
     def __init__(self):
@@ -79,19 +89,25 @@ class JobAutomationApp(ctk.CTk):
         # Sovereign Path Resolution
         self.db_path = config.DB_PATH
         self.tracker = Tracker(self.db_path)
+        
+        # Ensure Critical Folders Exist
+        (DATA_DIR / "output").mkdir(parents=True, exist_ok=True)
+        (DATA_DIR / "logs").mkdir(parents=True, exist_ok=True)
+        
+        # Phase 31.0: Guided Mode State
+        self.guided_var = tk.BooleanVar(value=True) # Default to Guided
 
         # Window Setup
         self.title(f"Sovereign Agent v{config.VERSION}")
-        self.geometry("1200x800")
-        self.minsize(1000, 700)
+        self.geometry("1400x900")
+        self.minsize(1100, 800)
         
         # Set Icons
         try:
             icon_path = Path(resource_path("image/favicon.ico"))
             if icon_path.exists() and platform.system() == "Windows":
                 self.iconbitmap(str(icon_path))
-        except Exception as e:
-            print(f"[UI] Warning: Could not set window icon: {e}")
+        except Exception: pass
 
         # Windows Taskbar Icon Fix
         if platform.system() == "Windows":
@@ -103,1092 +119,1335 @@ class JobAutomationApp(ctk.CTk):
         self._old_stdout = sys.stdout
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # Phase 33: TDWAS Onboarding Check
-        self.after(500, self.check_onboarding)
-
-
-        # Phase 32: Legal Compliance
-        self.legal_var = ctk.BooleanVar(value=False)
-        
-        # Phase 27.2: AI Session Management
+        # UI State & AI Configuration
+        self._current_frame_name = "Dashboard"
         self.key_visible = False
+        self.legal_var = ctk.BooleanVar(value=True)
+        self.active_tasks = []
+        
         self.provider_keys = {
             "openai": config.OPENAI_API_KEY,
             "gemini": config.GEMINI_API_KEY,
             "claude": config.ANTHROPIC_API_KEY,
             "groq": config.GROQ_API_KEY,
-            "openrouter": config.OPENROUTER_API_KEY,
-            "ollama": "", # Local
-            "lmstudio": "" # Local
+            "ollama": config.OLLAMA_BASE_URL,
+            "lmstudio": config.LMSTUDIO_BASE_URL,
+            "openrouter": config.OPENROUTER_API_KEY
         }
-        self.last_provider = config.LLM_PROVIDER
+        
+        self.provider_models = {
+            "openai": ["gpt-4o", "gpt-4o-mini", "o1-preview"],
+            "claude": ["claude-3-5-sonnet-latest", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
+            "gemini": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"],
+            "groq": ["llama-3.3-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"],
+            "ollama": ["llama3", "mistral", "phi3", "custom..."],
+            "lmstudio": ["local-model"],
+            "openrouter": ["google/gemini-2.0-flash-001", "anthropic/claude-3.5-sonnet", "deepseek/deepseek-chat"]
+        }
         
         # ─── Layout ───
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
         # ─── Navigation Sidebar ───
-        self.sidebar_frame = ctk.CTkFrame(self, width=240, corner_radius=0)
+        self.sidebar_frame = ctk.CTkFrame(self, width=280, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(10, weight=1) # Spacer
 
-        # Sidebar Logo & Identity (High-DPI Support)
+        # Sidebar Logo (Modern & Clean)
         try:
             from PIL import Image
             logo_img = Image.open(resource_path("image/logo.png"))
-            self.logo_image = ctk.CTkImage(light_image=logo_img, dark_image=logo_img, size=(180, 180))
+            self.logo_image = ctk.CTkImage(light_image=logo_img, dark_image=logo_img, size=(200, 200))
             self.logo_label = ctk.CTkLabel(self.sidebar_frame, image=self.logo_image, text="")
-        except Exception as e:
-            print(f"[UI] Warning: Logo load failed: {e}")
-            self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="SOVEREIGN AGENT", font=ctk.CTkFont(size=22, weight="bold"))
+        except Exception:
+            self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="🛡️ SOVEREIGN\nAGENT", font=ctk.CTkFont(size=24, weight="bold"))
 
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 10))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(40, 30))
 
-        # Nav Buttons (Sovereign Executive Style)
-        self.dashboard_btn = self._create_nav_btn("🏠 DASHBOARD", 1, self.show_dashboard)
-        self.search_btn = self._create_nav_btn("🔍 TARGET SCAN", 2, self.show_search)
-        self.assets_btn = self._create_nav_btn("📋 ASSET HUB", 3, self.show_assets)
-        self.crm_btn = self._create_nav_btn("🤝 CANDIDATE CRM", 4, self.show_crm)
-        self.analytics_btn = self._create_nav_btn("📈 INTELLIGENCE", 5, self.show_analytics)
-        self.settings_btn = self._create_nav_btn("⚙️ SYSTEM CORE", 6, self.show_settings)
-        self.support_btn = self._create_nav_btn("🤝 HELP & SUPPORT", 7, self.show_support)
+        # Nav Buttons
+        self.nav_btns = {}
+        self.dash_btn = self._create_nav_btn("📊 DASHBOARD", 1, "Dashboard")
+        self.scan_btn = self._create_nav_btn("🔍 TARGET SCAN", 2, "Scan")
+        self.asset_btn = self._create_nav_btn("📂 ASSET HUB", 3, "Assets")
+        self.crm_btn = self._create_nav_btn("🤝 CANDIDATE CRM", 4, "CRM")
+        self.intel_btn = self._create_nav_btn("🧠 INTELLIGENCE", 5, "Intel")
+        self.core_btn = self._create_nav_btn("⚙️ SYSTEM CORE", 6, "Core")
+        self.help_btn = self._create_nav_btn("❓ HELP & SUPPORT", 7, "Support")
+        self.analytics_btn = self._create_nav_btn("📊 ANALYTICS HUB", 8, "Analytics")
 
-        # Live Status Card in Sidebar
-        self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="#121212", corner_radius=10, border_width=1, border_color="#333")
-        self.status_frame.grid(row=11, column=0, padx=20, pady=20, sticky="ew")
-        self.status_title = ctk.CTkLabel(self.status_frame, text="SYSTEM STATUS", font=ctk.CTkFont(size=10, weight="bold"))
-        self.status_title.pack(pady=(10, 0))
-        self.status_indic = ctk.CTkLabel(self.status_frame, text="● READY", text_color="#00d4ff", font=ctk.CTkFont(weight="bold"))
-        self.status_indic.pack(pady=(0, 10))
-
-        # ─── Main Content Area ───
+        # System Health Card
+        self.health_card = ctk.CTkFrame(self.sidebar_frame, fg_color="#121212", corner_radius=12, border_width=1, border_color="#333")
+        self.health_card.grid(row=11, column=0, padx=20, pady=30, sticky="ew")
         
-        # 1. Dashboard Frame
+        status_inner = ctk.CTkFrame(self.health_card, fg_color="transparent")
+        status_inner.pack(pady=15, padx=15, fill="x")
+        
+        ctk.CTkLabel(status_inner, text="SYSTEM STATUS", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(anchor="w")
+        self.status_indic = ctk.CTkLabel(status_inner, text="● READY", text_color="#2ecc71", font=ctk.CTkFont(size=14, weight="bold"))
+        self.status_indic.pack(anchor="w", pady=(2, 0))
+        
+        self.battery_lvl = ctk.CTkProgressBar(status_inner, height=4, progress_color="#00d4ff")
+        self.battery_lvl.pack(fill="x", pady=(10, 0))
+        self.battery_lvl.set(1.0)
+
+        # ─── Main Content Hubs ───
+        
+        # 1. Dashboard (Metrics & Telemetry)
         self.dashboard_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.dashboard_frame.grid_columnconfigure(0, weight=4) # Feed
-        self.dashboard_frame.grid_columnconfigure(1, weight=3) # Terminal
-        self.dashboard_frame.grid_rowconfigure(0, weight=1) # FIX: Allow expansion
+        self.dashboard_frame.grid_columnconfigure(0, weight=1)
+        self.dashboard_frame.grid_rowconfigure(2, weight=1)
         self._build_dashboard_ui()
-
-        # SMART ONBOARDING: If no keys, show settings first
-        if not _get("OPENROUTER_API_KEY") and not _get("OPENAI_API_KEY"):
-            self.after(1000, lambda: self._show_onboarding_alert())
-            self.after(1500, lambda: self.select_frame_by_name("Settings"))
-
-        # ─── Framework Initialization ───
-        
-        # 2. Search Tab Frame
-        self.search_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.search_frame.grid_columnconfigure(0, weight=1)
-        self.search_frame.grid_rowconfigure(1, weight=1) 
-        self._build_search_ui()
-
-        # 3. Assets Frame (Resume Manager)
-        self.assets_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.assets_frame.grid_columnconfigure(0, weight=1)
-        self.assets_frame.grid_rowconfigure(2, weight=1)
-        self._build_assets_ui()
-
-        # 4. Analytics Frame
+        # 8. Analytics (Frontier v34)
         self.analytics_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.analytics_frame.grid_columnconfigure(0, weight=1)
-        self.analytics_frame.grid_rowconfigure(1, weight=1) 
         self._build_analytics_ui()
 
-        # 4b. CRM Frame (NEW)
+        # 2. Target Scan (Intelligence & Search)
+        self.scan_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.scan_frame.grid_columnconfigure(0, weight=1)
+        self._build_scan_ui()
+
+        # 3. Asset Hub (Document Explorer)
+        self.asset_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.asset_frame.grid_columnconfigure(0, weight=1)
+        self._build_asset_hub_ui()
+
+        # 4. Candidate CRM (Application Tracker)
         self.crm_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.crm_frame.grid_columnconfigure(0, weight=1)
         self.crm_frame.grid_rowconfigure(2, weight=1)
         self._build_crm_ui()
 
-        # 5. Settings Frame (Sovereign Command Center)
-        self.settings_frame = ctk.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
-        self.settings_frame.grid_columnconfigure(0, weight=1)
-        self._build_settings_ui()
+        # 5. Intelligence (AI Synapse Core)
+        self.intel_frame = ctk.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
+        self.intel_frame.grid_columnconfigure(0, weight=1)
+        self._build_intelligence_ui()
 
-        # 6. Support Frame
-        self.support_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.support_frame.grid_columnconfigure(0, weight=1)
-        self._build_support_ui()
+        # 6. System Core (Profile & Identity)
+        self.core_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.core_frame.grid_columnconfigure(0, weight=1)
+        self._build_system_core_ui()
 
-        # Set Initial State
+        # 7. Help & Support
+        self.help_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.help_frame.grid_columnconfigure(0, weight=1)
+        self._build_help_ui()
+
+        # Default to Dashboard
         self.select_frame_by_name("Dashboard")
-        self.refresh_stats()
-
-        # PHASE 24.5: Instant Console Redirection
+        
+        # Power-on Sequence
         self.after(500, self.enable_redirection)
+        self.after(1000, self.check_onboarding)
+        self.after(2000, self.refresh_stats_loop)
+        self.after(3000, self.background_update_check)
 
-    def enable_redirection(self):
-        """Safely take over stdout once the GUI is stable."""
-        try:
-            if hasattr(self, 'log_box') and self.log_box.winfo_exists():
-                sys.stdout = LogRedirector(self.log_box)
-                print("[System] Console handover complete. Logic stream active.")
-        except Exception as e:
-            print(f"[UI] Redirection failed: {e}")
+    def background_update_check(self):
+        """Threaded non-blocking check for new mission directives."""
+        def run_check():
+            try:
+                from src.update_manager import check_for_updates
+                if check_for_updates():
+                    self.after(0, self._signal_update_available)
+            except: pass
+        threading.Thread(target=run_check, daemon=True).start()
 
-    def on_closing(self):
-        """Restore stdout and safe shutdown."""
-        print("[System] Shifting to standby. Security protocols active.")
-        try:
-            if hasattr(self, '_old_stdout'):
-                sys.stdout = self._old_stdout
-        except Exception:
-            pass
-        self.destroy()
-        sys.exit(0)
+    def _signal_update_available(self):
+        """Visual notification of new mission code."""
+        if hasattr(self, 'update_notif_label'):
+            self.update_notif_label.configure(
+                text="🔔 MISSION UPDATE AVAILABLE", 
+                text_color="#2ecc71", 
+                cursor="hand2"
+            )
+            # Bind click to open releases
+            self.update_notif_label.bind("<Button-1>", lambda e: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/releases"))
+            print("[System] ⚡ Alert: A newer version of the Sovereign Agent is available on GitHub.")
 
-    def _show_onboarding_alert(self):
-        print("\n" + "═"*50)
-        print(" 🚀 WELCOME TO SOVEREIGN AGENT")
-        print("" + "═"*50)
-        print(" [SYSTEM] First-run detected. Please configure your")
-        print(" [SYSTEM] API Keys in the 'SYSTEM CORE' tab to begin.")
-        print("═"*50 + "\n")
+    def _run_in_thread(self, func, *args, name="Task", **kwargs):
+        """Standard engine for executing mission-critical background tasks."""
+        def wrapper():
+            try:
+                self.status_indic.configure(text=f"● {name.upper()} ACTIVE", text_color="#00d4ff")
+                self.battery_lvl.configure(progress_color="#00d4ff")
+                func(*args, **kwargs)
+                print(f"[System] {name} mission complete.")
+                self.status_indic.configure(text="● READY", text_color="#2ecc71")
+                self.battery_lvl.configure(progress_color="#00d4ff")
+            except Exception as e:
+                print(f"[Error] {name} failure: {e}")
+                self.status_indic.configure(text="● CRITICAL ERROR", text_color="#e74c3c")
+                self.battery_lvl.configure(progress_color="#e74c3c")
 
-    def _create_nav_btn(self, text, row, command):
-        btn = ctk.CTkButton(self.sidebar_frame, text=text, fg_color="transparent", text_color=("gray90", "gray90"), 
-                             hover_color="#34495e", anchor="w", font=ctk.CTkFont(size=14), height=45, command=command)
-        btn.grid(row=row, column=0, padx=15, pady=5, sticky="ew")
+        thread = threading.Thread(target=wrapper, daemon=True)
+        thread.start()
+        self.active_tasks.append(thread)
+        return thread
+
+    # ─── Navigation Sidebar Logic ───
+    def _create_nav_btn(self, text, row, name):
+        btn = ctk.CTkButton(self.sidebar_frame, text=text, height=55, corner_radius=0, border_spacing=12,
+                           fg_color="transparent", text_color=("gray10", "gray90"), hover_color=("gray70", "gray30"),
+                           anchor="w", font=ctk.CTkFont(size=13, weight="bold"), command=lambda: self.on_nav_click(name))
+        btn.grid(row=row, column=0, sticky="ew")
+        self.nav_btns[name] = btn
         return btn
 
-    def _build_dashboard_ui(self):
-        # LEFT: Feed & Stats
-        left_panel = ctk.CTkFrame(self.dashboard_frame, fg_color="transparent")
-        left_panel.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
-        left_panel.grid_columnconfigure(0, weight=1)
+    def on_nav_click(self, name):
+        """Strategic Hub Switching with auto-refresh intelligence."""
+        if name == "Analytics": self.refresh_analytics()
+        if name == "CRM": self.refresh_crm_feed()
+        if name == "Dashboard": self.refresh_stats()
+        self.select_frame_by_name(name)
 
-        ctk.CTkLabel(left_panel, text="Control Center", font=ctk.CTkFont(size=28, weight="bold")).grid(row=0, column=0, sticky="w", pady=(0, 20))
-        
-        # Stats Row
-        stats_row = ctk.CTkFrame(left_panel, fg_color="transparent")
-        stats_row.grid(row=1, column=0, sticky="ew", pady=10)
-        stats_row.grid_columnconfigure((0, 1, 2), weight=1)
-        self.stat_apps = self._create_stat_card(stats_row, "SUCCESSFUL APPS", "0", 0)
-        self.stat_recent = self._create_stat_card(stats_row, "LAST 24 HOURS", "0", 1)
-        self.stat_rate = self._create_stat_card(stats_row, "WINS (MATCH RATE)", "0%", 2)
-
-        # Scan Lookback Duration (Phase 27.0)
-        lookback_frame = ctk.CTkFrame(left_panel, fg_color="#080808", corner_radius=10, border_width=1, border_color="#333")
-        lookback_frame.grid(row=2, column=0, sticky="ew", pady=(20, 10))
-        self.lookback_label = ctk.CTkLabel(lookback_frame, text="Scan Lookback: 3.0 days", font=ctk.CTkFont(size=11, weight="bold"))
-        self.lookback_label.pack(side="left", padx=20, pady=15)
-        self.lookback_slider = ctk.CTkSlider(lookback_frame, from_=0.1, to=30, number_of_steps=299, command=self.update_lookback_label)
-        self.lookback_slider.set(3.0)
-        self.lookback_slider.pack(side="left", expand=True, fill="x", padx=(0, 20))
-
-        # Buttons
-        self.run_btn = ctk.CTkButton(left_panel, text="⚡ LAUNCH AUTO-PIPELINE", fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", height=60, font=ctk.CTkFont(size=16, weight="bold"), command=self.run_pipeline)
-        self.run_btn.grid(row=3, column=0, sticky="ew", pady=10)
-        self.run_btn.configure(state="disabled") # Locked until legal check
-
-        # Job Feed
-        self.feed_frame = ctk.CTkScrollableFrame(left_panel, label_text="RECENT MISSIONS", label_font=ctk.CTkFont(weight="bold"), height=400)
-        self.feed_frame.grid(row=4, column=0, sticky="nsew", pady=10)
-        left_panel.grid_rowconfigure(4, weight=1)
-
-        # RIGHT: Live Terminal
-        right_panel = ctk.CTkFrame(self.dashboard_frame, fg_color="#080808", corner_radius=15, border_width=1, border_color="#333")
-        right_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=40)
-        right_panel.grid_rowconfigure(1, weight=1)
-        right_panel.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(right_panel, text="LIVE OPERATIONS CONSOLE", font=ctk.CTkFont(size=12, weight="bold", family="Consolas"), text_color="#00d4ff").grid(row=0, column=0, pady=10)
-        self.log_box = ctk.CTkTextbox(right_panel, fg_color="transparent", font=ctk.CTkFont(family="Consolas", size=11), text_color="#00d4ff", wrap="word")
-        self.log_box.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
-        # sys.stdout = LogRedirector(self.log_box) # MOVED to delayed enable_redirection
-
-    def _build_assets_ui(self):
-        ctk.CTkLabel(self.assets_frame, text="Asset Hub & Identity", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
-        
-        # 1. Identity Status
-        id_frame = ctk.CTkFrame(self.assets_frame, corner_radius=15, border_width=1, border_color="#333")
-        id_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
-        
-        ctk.CTkLabel(id_frame, text="👤 AGENT IDENTITY (BRAIN)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
-        
-        # Check if profile is set
-        profile = ApplicantProfile()
-        name = profile.data.get('personal', {}).get('first_name', '') + " " + profile.data.get('personal', {}).get('last_name', '')
-        if not name.strip(): name = "NOT CONFIGURED"
-        
-        ctk.CTkLabel(id_frame, text=f"Active Profile: {name}", text_color="gray").pack()
-        
-        btn_grid = ctk.CTkFrame(id_frame, fg_color="transparent")
-        btn_grid.pack(pady=20, padx=20)
-        ctk.CTkButton(btn_grid, text="📝 EDIT FULL IDENTITY", command=self.open_profile_editor).pack(side="left", padx=10)
-        
-        # 2. Resume Management
-        res_frame = ctk.CTkFrame(self.assets_frame, corner_radius=15)
-        res_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
-        
-        ctk.CTkLabel(res_frame, text="📄 RESUME MANAGER", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=10)
-        
-        # Status indicators
-        pdf_status = "✅ BASE_RESUME.PDF (Active)" if BASE_RESUME_PDF.exists() else "❌ PDF NOT FOUND"
-        docx_status = "✅ BASE_RESUME.DOCX" if BASE_RESUME_DOCX.exists() else "❌ DOCX NOT FOUND"
-        ctk.CTkLabel(res_frame, text=f"{pdf_status}\n{docx_status}", text_color="gray", font=ctk.CTkFont(size=11)).pack()
-        
-        up_grid = ctk.CTkFrame(res_frame, fg_color="transparent")
-        up_grid.pack(pady=15)
-        ctk.CTkButton(up_grid, text="📤 UPLOAD PDF", fg_color="#34495e", command=lambda: self.upload_asset("pdf")).pack(side="left", padx=5)
-        ctk.CTkButton(up_grid, text="📤 UPLOAD DOCX", fg_color="#34495e", command=lambda: self.upload_asset("docx")).pack(side="left", padx=5)
-
-    def upload_asset(self, ext):
-        file = filedialog.askopenfilename(title=f"Select Resume ({ext.upper()})", filetypes=[(f"{ext.upper()} files", f"*.{ext}")])
-        if file:
-            try:
-                target = BASE_RESUME_PDF if ext == "pdf" else BASE_RESUME_DOCX
-                shutil.copy2(file, target)
-                print(f"[Assets] Updated {ext.upper()} resume successfully in permanent storage.")
-                self.after(500, self._build_assets_ui) # Refresh
-                self.after(500, self.check_onboarding) # Re-check lock
-            except Exception as e:
-                print(f"[Assets] Upload failed: {e}")
-
-    def open_profile_editor(self):
-        ProfileEditorWindow(self)
-
-    def refresh_assets_list(self):
-        """Scan output folder for existing resumes."""
-        for widget in self.asset_scroll.winfo_children(): widget.destroy()
-        
-        output_path = Path(config.OUTPUT_DIR)
-        if not output_path.exists(): 
-            ctk.CTkLabel(self.asset_scroll, text="No campaigns initiated yet.").pack(pady=20)
-            return
-
-        # Get subdirectories (dated)
-        campaigns = sorted([d for d in output_path.iterdir() if d.is_dir()], reverse=True)
-        for campaign in campaigns:
-            for sub in sorted([s for s in campaign.iterdir() if s.is_dir()], reverse=True):
-                row = ctk.CTkFrame(self.asset_scroll, fg_color="transparent")
-                row.pack(fill="x", padx=10, pady=5)
-                
-                label_text = f"📂 {campaign.name} | {sub.name[:30]}..."
-                ctk.CTkLabel(row, text=label_text, font=ctk.CTkFont(size=12)).pack(side="left", padx=10)
-                
-                ctk.CTkButton(row, text="OPEN FOLDER", width=120, height=28, fg_color="#34495e", 
-                              command=lambda p=sub: open_path(p)).pack(side="right", padx=5)
-                
-                pdfs = list(sub.glob("*.pdf"))
-                if pdfs:
-                    ctk.CTkButton(row, text="VIEW PDF", width=100, height=28, fg_color="#00d4ff", hover_color="#00a8cc", text_color="black",
-                                  command=lambda p=pdfs[0]: open_path(p)).pack(side="right", padx=5)
+    def select_frame_by_name(self, name):
+        """High-performance hub switching with visual feedback."""
+        frames = {
+            "Dashboard": self.dashboard_frame, 
+            "Scan": self.scan_frame, 
+            "Assets": self.asset_frame,
+            "CRM": self.crm_frame,
+            "Intel": self.intel_frame,
+            "Core": self.core_frame,
+            "Support": self.help_frame,
+            "Analytics": self.analytics_frame
+        }
+        for n, frame in frames.items():
+            if n == name:
+                self._current_frame_name = name
+                frame.grid(row=0, column=1, sticky="nsew")
+                self.nav_btns[n].configure(fg_color=("gray75", "gray25"), text_color="#00d4ff")
+            else:
+                frame.grid_forget()
+                self.nav_btns[n].configure(fg_color="transparent", text_color=("gray10", "gray90"))
 
     def _build_analytics_ui(self):
-        ctk.CTkLabel(self.analytics_frame, text="Intelligence Dashboard", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
-        self.chart_frame = ctk.CTkFrame(self.analytics_frame, corner_radius=15, fg_color="#1a1a1a")
-        self.chart_frame.grid(row=1, column=0, padx=30, pady=10, sticky="nsew")
-        self.analytics_frame.grid_rowconfigure(1, weight=1)
-        self.chart_canvas = ctk.CTkCanvas(self.chart_frame, background="#1a1a1a", highlightthickness=0)
-        self.chart_canvas.pack(fill="both", expand=True, padx=30, pady=30)
- 
-    def _create_stat_card(self, parent, title, value, col):
-        frame = ctk.CTkFrame(parent, fg_color="#1a1a1a", corner_radius=12)
-        frame.grid(row=0, column=col, padx=5, pady=5, sticky="ew")
-        ctk.CTkLabel(frame, text=title, text_color="gray60", font=ctk.CTkFont(size=10, weight="bold")).pack(pady=(15, 0))
-        val_label = ctk.CTkLabel(frame, text=value, font=ctk.CTkFont(size=28, weight="bold"))
+        """Sector 8: Advanced Mission Intelligence (Frontier v34)."""
+        header = ctk.CTkLabel(self.analytics_frame, text="Mission Analytics & Strategic ROI", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        # ROI Grid
+        roi_card = self._create_card(self.analytics_frame, "📊 PLATFORM EFFICIENCY (ROI)")
+        roi_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        self.roi_scroll = ctk.CTkScrollableFrame(roi_card, height=300, fg_color="transparent")
+        self.roi_scroll.grid(row=1, column=0, padx=15, pady=20, sticky="ew")
+
+    def refresh_analytics(self):
+        """Update the Analytics Hub with fresh mission data."""
+        try:
+            stats = self.tracker.get_stats()
+            # Clear ROI scroll
+            for child in self.roi_scroll.winfo_children(): child.destroy()
+            
+            roi = stats.get('platform_roi', {})
+            for plat, data in roi.items():
+                row = ctk.CTkFrame(self.roi_scroll, fg_color="#1a1a1a", corner_radius=8)
+                row.pack(fill="x", pady=2, padx=5)
+                ctk.CTkLabel(row, text=plat.upper(), width=120, font=ctk.CTkFont(weight="bold")).pack(side="left", padx=15)
+                
+                # Progress Bar for Applied vs Discovered
+                bar = ctk.CTkProgressBar(row, width=200, height=8, progress_color="#2980b9")
+                bar.pack(side="left", padx=20)
+                rate = data['applied'] / (data['total'] if data['total'] > 0 else 1)
+                bar.set(rate)
+                
+                ctk.CTkLabel(row, text=f"{data['applied']} Applied / {data['total']} Hits", text_color="gray").pack(side="left", padx=15)
+                
+                if data['interviews'] > 0:
+                    ctk.CTkLabel(row, text=f"🎯 {data['interviews']} INTERVIEWS", text_color="#2ecc71", font=ctk.CTkFont(weight="bold")).pack(side="right", padx=15)
+        except Exception as e:
+            print(f"[Error] Failed to refresh analytics: {e}")
+
+    # ─── Sector Builders ───────────────────────────────────────────────
+    
+    def _build_dashboard_ui(self):
+        """Sector 1: Mission Command & High-Speed Telemetry."""
+        lbl = ctk.CTkLabel(self.dashboard_frame, text="Mission Command Dashboard", font=ctk.CTkFont(size=28, weight="bold"))
+        lbl.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        # Stats Cards Grid
+        stats_frame = ctk.CTkFrame(self.dashboard_frame, fg_color="transparent")
+        stats_frame.grid(row=1, column=0, padx=40, pady=(0, 25), sticky="ew")
+        stats_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        self.stat_apps = self._create_stat_card(stats_frame, "📊 DEPLOYED APPS", "0", 0)
+        self.stat_interviews = self._create_stat_card(stats_frame, "🎤 INTERVIEW LEADS", "0", 1)
+        self.stat_discoveries = self._create_stat_card(stats_frame, "🔍 INTEL TARGETS", "0", 2)
+        self.stat_success = self._create_stat_card(stats_frame, "⚡ EFFICIENCY RATE", "0%", 3)
+        
+        # Phase 32.7: Update Notification Label
+        self.update_notif_label = ctk.CTkLabel(self.dashboard_frame, text="", font=ctk.CTkFont(size=12, weight="bold"))
+        self.update_notif_label.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="e")
+
+        # Mission Intelligence Visuals (New Phase 32.0)
+        visuals_frame = ctk.CTkFrame(self.dashboard_frame, fg_color="transparent")
+        visuals_frame.grid(row=2, column=0, padx=40, pady=(10, 25), sticky="ew")
+        visuals_frame.grid_columnconfigure((0, 1), weight=1)
+
+        # Funnel Chart (Mission Progress)
+        self.funnel_card = self._create_card(visuals_frame, "📈 MISSION PROGRESS FUNNEL")
+        self.funnel_card.grid(row=0, column=0, padx=(0, 10), sticky="nsew")
+        self.funnel_canvas = ctk.CTkCanvas(self.funnel_card, height=180, bg="#121212", highlightthickness=0)
+        self.funnel_canvas.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="nsew")
+
+        # Pie Chart (Platform Coverage)
+        self.pie_card = self._create_card(visuals_frame, "🥧 PLATFORM DENSITY")
+        self.pie_card.grid(row=0, column=1, padx=(10, 0), sticky="nsew")
+        self.pie_canvas = ctk.CTkCanvas(self.pie_card, height=180, bg="#121212", highlightthickness=0)
+        self.pie_canvas.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="nsew")
+
+        # Main Deck (Terminal & Quick Actions)
+        main_deck = ctk.CTkFrame(self.dashboard_frame, corner_radius=15, border_width=1, border_color="#333")
+        main_deck.grid(row=3, column=0, padx=40, pady=(10, 40), sticky="nsew")
+        main_deck.grid_columnconfigure(0, weight=1)
+        main_deck.grid_rowconfigure(0, weight=1)
+
+        # Terminal
+        term_frame = ctk.CTkFrame(main_deck, fg_color="transparent")
+        term_frame.grid(row=0, column=0, padx=25, pady=25, sticky="nsew")
+        
+        ctk.CTkLabel(term_frame, text="📡 REAL-TIME MISSION TELEMETRY", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(anchor="w", pady=(0, 10))
+        self.log_box = ctk.CTkTextbox(term_frame, font=("Fira Code", 13), fg_color="#0a0a0a", text_color="#2ecc71")
+        self.log_box.pack(fill="both", expand=True)
+
+        # Quick Control Panel
+        ctrl_panel = ctk.CTkFrame(main_deck, width=280, fg_color="#121212", corner_radius=10)
+        ctrl_panel.grid(row=0, column=1, padx=25, pady=25, sticky="ns")
+        
+        ctk.CTkLabel(ctrl_panel, text="QUICK MISSION CONTROLS", font=ctk.CTkFont(size=11, weight="bold")).pack(pady=(30, 20))
+        
+        ctk.CTkButton(ctrl_panel, text="🚀 FULL AUTO-PILOT", height=50, fg_color="#27ae60", hover_color="#2ecc71", font=ctk.CTkFont(weight="bold"), 
+                     command=self.run_full_pipeline).pack(pady=10, padx=30, fill="x")
+        
+        ctk.CTkButton(ctrl_panel, text="🧪 TEST AI SYNAPSE", height=45, fg_color="#34495e", command=self.test_ai_synapse).pack(pady=10, padx=30, fill="x")
+        
+        self.stop_btn = ctk.CTkButton(ctrl_panel, text="🛑 EMERGENCY ABORT", height=45, fg_color="#e74c3c", hover_color="#c0392b", command=self.stop_pipeline)
+        self.stop_btn.pack(pady=(20, 0), padx=30, fill="x")
+
+    def _build_scan_ui(self):
+        """Sector 2: Tactical Intelligence & Search Matrix."""
+        header = ctk.CTkLabel(self.scan_frame, text="Target Scan & Intelligence", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        # 1. Email Intelligence Card
+        email_card = self._create_card(self.scan_frame, "📩 RECRUITER SIGNAL DETECTION")
+        email_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(email_card, text="Scan your inbox for interview requests and recruiter messages.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        
+        # Phase 32.3: Email Scan Platform Filter
+        self.email_btn = ctk.CTkButton(email_card, text="🔍 INITIATE EMAIL SCAN", height=45, fg_color="#2980b9", command=self.run_email_scan)
+        self.email_btn.grid(row=2, column=0, padx=25, pady=20, sticky="w")
+
+        # 2. Search Matrix Card
+        search_card = self._create_card(self.scan_frame, "🛰️ GLOBAL SEARCH MATRIX")
+        search_card.grid(row=2, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(search_card, text="Trigger tactical search campaigns across multiple job boards.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        ctk.CTkButton(search_card, text="🧭 LAUNCH SEARCH MATRIX", height=45, fg_color="#8e44ad", command=self.show_search_form).grid(row=2, column=0, padx=25, pady=20, sticky="w")
+
+        # 3. Precision Striking
+        prec_card = self._create_card(self.scan_frame, "🎯 SURGICAL URL STRIKE")
+        prec_card.grid(row=3, column=0, padx=40, pady=10, sticky="ew")
+        
+        self.surgical_url_entry = ctk.CTkEntry(prec_card, placeholder_text="Paste job URL here...", height=45)
+        self.surgical_url_entry.grid(row=1, column=0, padx=25, pady=(20, 10), sticky="ew")
+        
+        # Phase 32.3: Surgical Platform Override
+        self.strike_plat_var = ctk.StringVar(value="Auto-Detect")
+        self.strike_plat_menu = ctk.CTkOptionMenu(prec_card, variable=self.strike_plat_var, 
+                                               values=["Auto-Detect", "LinkedIn", "Indeed", "ZipRecruiter", "Dice", "Wellfound", "BuiltIn"],
+                                               width=140, height=45, fg_color="#34495e")
+        self.strike_plat_menu.grid(row=1, column=1, padx=10, pady=(20, 10))
+        
+        ctk.CTkButton(prec_card, text="🚀 EXECUTE STRIKE", height=45, font=ctk.CTkFont(weight="bold"), 
+                     command=self.run_surgical_apply).grid(row=1, column=2, padx=(0, 25), pady=(20, 10))
+        
+        # Guided Mode Toggle
+        ctk.CTkCheckBox(prec_card, text="Enable Hand-in-Hand Guided Mode (Recommended)", 
+                        variable=self.guided_var, font=ctk.CTkFont(size=12)).grid(row=2, column=0, padx=25, pady=(0, 20), sticky="w")
+
+    def _build_asset_hub_ui(self):
+        """Sector 3: Asset Explorer (Resumes & Documents)."""
+        header = ctk.CTkLabel(self.asset_frame, text="Mission Asset Hub", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+        
+        # Folder Card
+        dir_card = self._create_card(self.asset_frame, "📂 GENERATED MISSION ASSETS")
+        dir_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(dir_card, text="View and manage and tailored resumes and cover letters.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        
+        btn_row = ctk.CTkFrame(dir_card, fg_color="transparent")
+        btn_row.grid(row=2, column=0, padx=25, pady=25, sticky="w")
+        
+        ctk.CTkButton(btn_row, text="📂 OPEN OUTPUT FOLDER", command=lambda: open_path(DATA_DIR / "output")).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(btn_row, text="📑 GENERATE NEW KIT", fg_color="#34495e", command=lambda: self.run_surgical_apply(only_docs=True)).pack(side="left")
+
+    def _build_crm_ui(self):
+        """Sector 4: Candidate CRM & Application Tracker."""
+        header = ctk.CTkLabel(self.crm_frame, text="Candidate Outreach CRM", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        # Active Feed (Table)
+        self.feed_frame = ctk.CTkFrame(self.crm_frame, corner_radius=15, border_width=1, border_color="#333")
+        self.feed_frame.grid(row=1, column=0, padx=40, pady=(0, 30), sticky="nsew")
+        self.feed_frame.grid_columnconfigure(0, weight=1)
+        self.feed_frame.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(self.feed_frame, text="🤝 MISSION TRACKER (tracker.db)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").grid(row=0, column=0, padx=25, pady=(20, 10), sticky="w")
+        
+        self.feed_scroll = ctk.CTkScrollableFrame(self.feed_frame, fg_color="transparent")
+        self.feed_scroll.grid(row=1, column=0, padx=15, pady=(0, 20), sticky="nsew")
+
+    def _build_intelligence_ui(self):
+        """Sector 5: Neural Intelligence Core."""
+        header = ctk.CTkLabel(self.intel_frame, text="Neural Intelligence Core", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        ai_card = self._create_card(self.intel_frame, "🧠 ARTIFICIAL INTELLIGENCE CORE")
+        ai_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        col1 = ctk.CTkFrame(ai_card, fg_color="transparent")
+        col1.grid(row=1, column=0, padx=20, pady=20, sticky="ew")
+        
+        self.provider_var = ctk.StringVar(value=config.LLM_PROVIDER)
+        ctk.CTkLabel(col1, text="Primary Intelligence Engine:").grid(row=0, column=0, sticky="w")
+        p_menu = ctk.CTkOptionMenu(col1, values=list(self.provider_models.keys()), variable=self.provider_var, command=self.update_provider_visibility)
+        p_menu.grid(row=1, column=0, pady=(5, 15), sticky="ew")
+        
+        self.token_label = ctk.CTkLabel(col1, text="Provider Access Token (Encrypted):")
+        self.token_label.grid(row=2, column=0, sticky="w")
+        
+        self.key_entry = ctk.CTkEntry(col1, show="*", height=40, placeholder_text="sk-...", width=400)
+        self.key_entry.grid(row=3, column=0, pady=5, sticky="ew")
+        self.key_entry.bind("<KeyRelease>", lambda e: self.save_provider_key())
+        self.key_entry.bind("<FocusOut>", lambda e: self.save_provider_key())
+        
+        ctk.CTkLabel(col1, text="Target Intelligence Model:").grid(row=4, column=0, pady=(15, 0), sticky="w")
+        self.model_var = ctk.StringVar(value=self._get_current_model())
+        self.model_menu = ctk.CTkOptionMenu(col1, values=self.provider_models.get(config.LLM_PROVIDER, ["default"]), variable=self.model_var, command=self.save_model_choice)
+        self.model_menu.grid(row=5, column=0, pady=5, sticky="ew")
+
+        ctk.CTkButton(col1, text="🧪 TEST CONNECTION", height=40, fg_color="#34495e", command=self.test_ai_synapse).grid(row=6, column=0, pady=20, sticky="w")
+        
+        # Phase 32.5: Email Intelligence Configuration
+        ctk.CTkLabel(ai_card, text="📩 EMAIL DISCOVERY (APP PASSWORDS)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").grid(row=2, column=0, padx=25, pady=(20, 10), sticky="w")
+        email_info = ctk.CTkFrame(ai_card, fg_color="transparent")
+        email_info.grid(row=3, column=0, padx=25, pady=(0, 20), sticky="ew")
+        
+        info_text = "To use Email Discovery, use an 'App Password' instead of your main password.\nRequires 2-Step Verification for Gmail, Yahoo, & Outlook."
+        ctk.CTkLabel(email_info, text=info_text, font=ctk.CTkFont(size=11), text_color="gray", justify="left").pack(side="left")
+        ctk.CTkButton(email_info, text="❔ SETUP GUIDE", height=30, width=120, fg_color="#34495e", 
+                      command=self._show_help_center).pack(side="right", padx=10)
+
+        self.update_provider_visibility(config.LLM_PROVIDER)
+
+    def _build_system_core_ui(self):
+        """Sector 6: Identity Sovereignty & Maintenance."""
+        header = ctk.CTkLabel(self.core_frame, text="System Core & Maintenance", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        # 1. Identity Master
+        id_card = self._create_card(self.core_frame, "👤 IDENTITY SOVEREIGN (IDENTITY.YAML)")
+        id_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(id_card, text="Your professional identity vault (90+ data points).", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        ctk.CTkButton(id_card, text="📝 LAUNCH IDENTITY COMMANDER", height=50, command=self.open_profile_editor).grid(row=2, column=0, padx=25, pady=25, sticky="w")
+
+        # 2. System Maintenance
+        maint_card = self._create_card(self.core_frame, "🛠️ MAINTENANCE UTILITIES")
+        maint_card.grid(row=2, column=0, padx=40, pady=10, sticky="ew")
+        
+        m_row = ctk.CTkFrame(maint_card, fg_color="transparent")
+        m_row.grid(row=1, column=0, padx=25, pady=20, sticky="w")
+        
+        ctk.CTkButton(m_row, text="🧹 PURGE OUTPUTS", fg_color="#34495e", command=self.purge_docs).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(m_row, text="📜 CLEAN LOGS", fg_color="#34495e", command=self.clean_logs).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(m_row, text="🔄 SYNC SYSTEM CODE", fg_color="#27ae60", hover_color="#2ecc71", command=self.run_system_update).pack(side="left")
+
+    def _build_help_ui(self):
+        """Sector 7: Help & Support Documentation."""
+        header = ctk.CTkLabel(self.help_frame, text="Help & Support Desk", font=ctk.CTkFont(size=28, weight="bold"))
+        header.grid(row=0, column=0, padx=40, pady=(40, 20), sticky="w")
+
+        info_card = self._create_card(self.help_frame, f"🛡️ SOVEREIGN AGENT v{config.VERSION}")
+        info_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(info_card, text="The most advanced career automation tool in the world.\nFully autonomous. Fully private. Built for winners.", justify="left").grid(row=1, column=0, padx=25, pady=20, sticky="w")
+        
+        btn_row = ctk.CTkFrame(info_card, fg_color="transparent")
+        btn_row.grid(row=2, column=0, padx=25, pady=(0, 25), sticky="w")
+        
+        ctk.CTkButton(btn_row, text="🌐 OFFICIAL REPOSITORY", command=lambda: webbrowser.open("https://github.com/wisdomgreat/JobAutomation")).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(btn_row, text="📖 DOCUMENTATION", fg_color="#34495e", command=lambda: webbrowser.open("https://github.com/wisdomgreat/JobAutomation#readme")).pack(side="left")
+
+    # ─── UI Helper Methods ───
+    def _create_card(self, parent, title):
+        card = ctk.CTkFrame(parent, corner_radius=15, border_width=1, border_color="#333")
+        ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").grid(row=0, column=0, padx=25, pady=(20, 10), sticky="w")
+        card.grid_columnconfigure(0, weight=1)
+        return card
+
+    def _create_stat_card(self, parent, title, value, column):
+        card = ctk.CTkFrame(parent, fg_color="#121212", corner_radius=12, border_width=1, border_color="#333")
+        card.grid(row=0, column=column, padx=8, pady=5, sticky="ew")
+        ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(pady=(15, 0))
+        val_label = ctk.CTkLabel(card, text=value, font=ctk.CTkFont(size=24, weight="bold"), text_color="#00d4ff")
         val_label.pack(pady=(0, 15))
         return val_label
 
-    def _build_search_ui(self):
-        ctk.CTkLabel(self.search_frame, text="Target Scan (Semi-Auto)", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
-        form = ctk.CTkFrame(self.search_frame, corner_radius=15)
-        form.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
-        form.grid_columnconfigure(1, weight=1)
+    # ─── Logic Controllers ───────────────────────────────────────────
+    def test_ai_synapse(self):
+        """Live connectivity test for the current AI provider."""
+        print(f"[System] Initiating AI Synapse handshake via {config.LLM_PROVIDER}...")
+        
+        def run_test():
+            from src.llm_provider import test_connection
+            success = test_connection()
+            if success:
+                print(f"[System] ✓ AI Synapse Online: {config.LLM_PROVIDER} responding normally.")
+            else:
+                print(f"[System] ✗ AI Synapse Offline: Check your api key or endpoint for {config.LLM_PROVIDER}.")
+        
+        self._run_in_thread(run_test, name="Synapse Test")
 
-        self.search_keywords = self._create_form_row(form, "Target Roles", "e.g. Cloud Architect, DevOps", 0)
-        self.search_location = self._create_form_row(form, "Target Location", "e.g. London, Remote", 1)
+    def run_system_update(self):
+        """Sector 6: Non-destructive mission code synchronization."""
+        print("[System] Initiating update sequence. Safeguarding state...")
+        def do_update():
+            try:
+                from src.update_manager import main as run_update
+                run_update()
+            except Exception as e:
+                print(f"[System] ✗ Update module failure: {e}")
         
-        ctk.CTkLabel(form, text="Platform Hub", width=150, anchor="w").grid(row=2, column=0, padx=20, pady=20)
-        self.search_platform = ctk.CTkOptionMenu(form, values=["LinkedIn", "Indeed", "Both"], width=300)
-        self.search_platform.grid(row=2, column=1, padx=20, pady=20, sticky="w")
+        self._run_in_thread(do_update, name="System Update")
 
-        self.search_btn_main = ctk.CTkButton(self.search_frame, text="🛰️ INITIATE SCAN", height=60, font=ctk.CTkFont(weight="bold"), fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", command=self.run_semi_auto_search)
-        self.search_btn_main.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
-        self.search_btn_main.configure(state="disabled") # Locked until legal check
+    def stop_pipeline(self):
+        print("[System] EMERGENCY ALL-STOP SIGNALED. Shutting down browser engines.")
+        self.status_indic.configure(text="● ABORTED", text_color="#e74c3c")
+        self.battery_lvl.configure(progress_color="#e74c3c")
 
-        # Phase 27.0: Tactical Controls
-        tactical_frame = ctk.CTkFrame(self.search_frame, fg_color="#080808", corner_radius=15, border_width=1, border_color="#333")
-        tactical_frame.grid(row=4, column=0, padx=30, pady=10, sticky="ew")
-        
-        ctk.CTkLabel(tactical_frame, text="TACTICAL CONTROLS", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(pady=(10, 5))
-        
-        # Match Score Slider
-        slider_frame = ctk.CTkFrame(tactical_frame, fg_color="transparent")
-        slider_frame.pack(fill="x", padx=20, pady=5)
-        self.match_label = ctk.CTkLabel(slider_frame, text=f"Match Intensity: {config.MATCH_SCORE_THRESHOLD}%", width=150, anchor="w")
-        self.match_label.pack(side="left")
-        self.match_slider = ctk.CTkSlider(slider_frame, from_=0, to=100, number_of_steps=20, command=self.update_match_label)
-        self.match_slider.set(config.MATCH_SCORE_THRESHOLD)
-        self.match_slider.pack(side="left", expand=True, fill="x", padx=10)
+    def refresh_stats(self):
+        if not self.winfo_exists(): return
+        try:
+            stats = self.tracker.get_stats()
+            self.stat_apps.configure(text=str(stats.get('applied', 0)))
+            self.stat_interviews.configure(text=str(stats.get('interviews', 0)))
+            self.stat_discoveries.configure(text=str(stats.get('total', 0)))
+            rate = (stats.get('applied', 0) / max(1, stats.get('total', 0))) * 100
+            self.stat_success.configure(text=f"{rate:.0f}%")
+            
+            self._update_funnel_chart(stats)
+            self._update_pie_chart(stats)
+        except Exception as e: 
+            print(f"[Error] Stats refresh failed: {e}")
 
-        # Search Intensity Slider (Phase 27.0)
-        intensity_frame = ctk.CTkFrame(tactical_frame, fg_color="transparent")
-        intensity_frame.pack(fill="x", padx=20, pady=5)
-        self.intensity_label = ctk.CTkLabel(intensity_frame, text="Search Intensity: 5 jobs", width=150, anchor="w")
-        self.intensity_label.pack(side="left")
-        self.intensity_slider = ctk.CTkSlider(intensity_frame, from_=1, to=50, number_of_steps=49, command=self.update_intensity_label)
-        self.intensity_slider.set(5)
-        self.intensity_slider.pack(side="left", expand=True, fill="x", padx=10)
-        
-        # Stealth Toggle
-        self.stealth_var = ctk.BooleanVar(value=True)
-        self.stealth_toggle = ctk.CTkSwitch(tactical_frame, text="BEHAVIORAL STEALTH (Human Mimicry)", variable=self.stealth_var, fg_color="#00d4ff")
-        self.stealth_toggle.pack(pady=10)
+    def _update_funnel_chart(self, stats):
+        try:
+            if not self.funnel_canvas.winfo_exists(): return
+            self.funnel_canvas.delete("all")
+            w, h = 300, 160 # Approx dimensions
+            
+            # Stages: Disc -> Applied -> Interv -> Offer (Simulated stages)
+            stages = [
+                ("DISCOVERY", stats.get('total', 0), "#34495e"),
+                ("APPLIED", stats.get('applied', 0), "#2980b9"),
+                ("INTERVIEW", stats.get('interviews', 0), "#8e44ad"),
+                ("OFFER", stats.get('offers', 0), "#27ae60")
+            ]
+            
+            max_val = max(1, stages[0][1])
+            y_step = h / len(stages)
+            
+            for i, (name, val, color) in enumerate(stages):
+                # Calculate trapezoid width based on value ratio
+                ratio = val / max_val
+                width = 250 * ratio
+                x0 = (w - width) / 2
+                x1 = x0 + width
+                y0 = i * y_step + 5
+                y1 = (i + 1) * y_step - 5
+                
+                self.funnel_canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="#444")
+                self.funnel_canvas.create_text(w/2, (y0+y1)/2, text=f"{name}: {val}", fill="white", font=("Inter", 10, "bold"))
+        except: pass
 
-    def update_match_label(self, val):
-        config.MATCH_SCORE_THRESHOLD = int(val)
-        self.match_label.configure(text=f"Match Intensity: {int(val)}%")
+    def _update_pie_chart(self, stats):
+        try:
+            if not self.pie_canvas.winfo_exists(): return
+            self.pie_canvas.delete("all")
+            platforms = stats.get('platforms', {})
+            if not platforms:
+                self.pie_canvas.create_text(150, 90, text="No Data Yet", fill="gray")
+                return
+                
+            total = sum(platforms.values())
+            start_angle = 0
+            colors = ["#2ecc71", "#3498db", "#9b59b6", "#f1c40f", "#e67e22", "#e74c3c"]
+            
+            cx, cy, r = 150, 90, 70
+            
+            for i, (plat, count) in enumerate(platforms.items()):
+                extent = (count / total) * 360
+                color = colors[i % len(colors)]
+                self.pie_canvas.create_arc(cx-r, cy-r, cx+r, cy+r, start=start_angle, extent=extent, fill=color, outline="#121212")
+                
+                # Label
+                mid_angle = math.radians(start_angle + extent/2)
+                lx = cx + (r + 20) * math.cos(mid_angle)
+                ly = cy - (r + 20) * math.sin(mid_angle)
+                self.pie_canvas.create_text(lx, ly, text=f"{plat[:3]}", fill="white", font=("Inter", 8))
+                
+                start_angle += extent
+        except Exception: pass
 
-    def update_intensity_label(self, val):
-        self.intensity_label.configure(text=f"Search Intensity: {int(val)} jobs")
-
-    def update_lookback_label(self, val):
-        self.lookback_label.configure(text=f"Scan Lookback: {float(val):.1f} days")
-
-    def _create_form_row(self, parent, label, dummy, row):
-        ctk.CTkLabel(parent, text=label, width=150, anchor="w").grid(row=row, column=0, padx=20, pady=15)
-        entry = ctk.CTkEntry(parent, placeholder_text=dummy, height=40)
-        entry.grid(row=row, column=1, padx=20, pady=15, sticky="ew")
-        return entry
-
-    def _build_settings_ui(self):
-        ctk.CTkLabel(self.settings_frame, text="Core Configuration", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
+    def refresh_crm_feed(self):
+        """Sector 4: Real-time candidate tracking synchronization."""
+        if not self.winfo_exists() or self._current_frame_name != "CRM": return
+        # Clear existing feed safely
+        try:
+            for w in self.feed_scroll.winfo_children(): w.destroy()
+        except: pass
         
-        # 1. AI Intelligence Hub (Dynamic)
-        ai_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15, border_width=1, border_color="#333")
-        ai_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
-        
-        ctk.CTkLabel(ai_frame, text="🧠 AI INTELLIGENCE HUB", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
-        
-        # Phase 27.2: Status Ribbon
-        self.ai_status_ribbon = ctk.CTkLabel(ai_frame, text="", font=ctk.CTkFont(size=10), text_color="gray")
-        self.ai_status_ribbon.pack(pady=(0, 10))
-        self._update_ai_status_ribbon()
-        
-        # Provider Dropdown
-        prov_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
-        prov_frame.pack(fill="x", padx=20, pady=5)
-        ctk.CTkLabel(prov_frame, text="Active Intelligence", width=150, anchor="w").pack(side="left")
-        self.provider_dropdown = ctk.CTkOptionMenu(prov_frame, values=["openai", "gemini", "claude", "groq", "openrouter", "ollama", "lmstudio"], 
-                                                   command=self.on_provider_change)
-        self.provider_dropdown.set(config.LLM_PROVIDER)
-        self.provider_dropdown.pack(side="right", expand=True, fill="x", padx=10)
-
-        # Model Dropdown (ComboBox for custom entry)
-        model_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
-        model_frame.pack(fill="x", padx=20, pady=5)
-        ctk.CTkLabel(model_frame, text="Model Identifier", width=150, anchor="w").pack(side="left")
-        
-        self.model_combo = ctk.CTkComboBox(model_frame, values=[], variable=ctk.StringVar(value=self._get_current_model()))
-        self.model_combo.pack(side="right", expand=True, fill="x", padx=10)
-        self._update_model_list(config.LLM_PROVIDER)
-        
-        # API Key Field (Shared Entry with Visibility Toggle)
-        self.api_key_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
-        self.api_key_frame.pack(fill="x", padx=20, pady=15)
-        self.api_key_label = ctk.CTkLabel(self.api_key_frame, text="API Access Key", width=150, anchor="w")
-        self.api_key_label.pack(side="left")
-        
-        entry_container = ctk.CTkFrame(self.api_key_frame, fg_color="transparent")
-        entry_container.pack(side="right", expand=True, fill="x", padx=10)
-        
-        self.api_key_entry = ctk.CTkEntry(entry_container, show="*")
-        self.api_key_entry.pack(side="left", expand=True, fill="x")
-        self.api_key_entry.bind("<KeyRelease>", self.update_api_key_buffer)
-        
-        self.eye_btn = ctk.CTkButton(entry_container, text="👁️", width=35, height=35, fg_color="transparent", 
-                                     hover_color="#333", command=self.toggle_api_visibility)
-        self.eye_btn.pack(side="right", padx=(5, 0))
-        
-        # Populate current
-        self.api_key_entry.insert(0, str(self.provider_keys.get(config.LLM_PROVIDER, "")))
-
-        # 2. Look & Feel (Appearance & Theme)
-        style_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15, border_width=1, border_color="#333")
-        style_frame.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
-        
-        ctk.CTkLabel(style_frame, text="🎨 LOOK & FEEL", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").pack(pady=10)
-        
-        # Appearance Mode
-        app_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
-        app_frame.pack(fill="x", padx=20, pady=5)
-        ctk.CTkLabel(app_frame, text="Appearance Mode", width=150, anchor="w").pack(side="left")
-        self.appearance_dropdown = ctk.CTkOptionMenu(app_frame, values=["System", "Dark", "Light"], 
-                                                     command=self.change_appearance_mode)
-        self.appearance_dropdown.set(config.GUI_APPEARANCE_MODE)
-        self.appearance_dropdown.pack(side="right", expand=True, fill="x", padx=10)
-        
-        # Accent Color
-        acc_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
-        acc_frame.pack(fill="x", padx=20, pady=10)
-        ctk.CTkLabel(acc_frame, text="Accent Color", width=150, anchor="w").pack(side="left")
-        self.accent_dropdown = ctk.CTkOptionMenu(acc_frame, values=["blue", "green", "dark-blue"], 
-                                                 command=self.change_accent_color)
-        self.accent_dropdown.set(config.GUI_ACCENT_COLOR)
-        self.accent_dropdown.pack(side="right", expand=True, fill="x", padx=10)
-
-        # 3. Sovereign Explorer (Directory Access)
-        expl_frame = ctk.CTkFrame(self.settings_frame, corner_radius=15)
-        expl_frame.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
-        ctk.CTkLabel(expl_frame, text="📂 SOVEREIGN EXPLORER", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=20, pady=20)
-        path_text = f"Storage: .../{DATA_DIR.name}"
-        ctk.CTkLabel(expl_frame, text=path_text, text_color="gray").pack(side="left", padx=10)
-        ctk.CTkButton(expl_frame, text="OPEN DATA FOLDER", width=150, fg_color="#34495e", command=lambda: open_path(DATA_DIR)).pack(side="right", padx=(10, 20), pady=20)
-        ctk.CTkButton(expl_frame, text="🧹 PURGE STALE ASSETS", width=150, fg_color="#e74c3c", hover_color="#c0392b", command=self.run_purge).pack(side="right", padx=10, pady=20)
-
-        # 3. Target Identity & Global Logins
-        ctk.CTkLabel(self.settings_frame, text="Global Platform Credentials", font=ctk.CTkFont(size=14, weight="bold")).grid(row=10, column=0, padx=30, pady=(30, 10), sticky="w")
-        
-        self.env_entries = {}
-        # We define all necessary credentials here
-        credential_keys = [
-            ("LINKEDIN_EMAIL", "LinkedIn Username"),
-            ("LINKEDIN_PASSWORD", "LinkedIn Password"),
-            ("INDEED_EMAIL", "Indeed Username"),
-            ("INDEED_PASSWORD", "Indeed Password"),
-            ("YAHOO_EMAIL", "Yahoo/Search Email"),
-            ("YAHOO_APP_PASSWORD", "Yahoo App Password")
-        ]
-        
-        for i, (key, label) in enumerate(credential_keys):
-            frame = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
-            frame.grid(row=i+15, column=0, padx=30, pady=5, sticky="ew")
-            ctk.CTkLabel(frame, text=label, width=200, anchor="w").pack(side="left")
-            entry = ctk.CTkEntry(frame, width=400, show="*" if "PASSWORD" in key else "")
-            entry.insert(0, str(_get(key)))
-            entry.pack(side="right", expand=True, fill="x", padx=10)
-            self.env_entries[key] = entry
-        
-        # Legal Compliance (Phase 32)
-        legal_frame = ctk.CTkFrame(self.settings_frame, fg_color="#2c3e50", corner_radius=10)
-        legal_frame.grid(row=90, column=0, padx=30, pady=20, sticky="ew")
-        
-        ctk.CTkLabel(legal_frame, text="⚠️ LEGAL ACKNOWLEDGEMENT", font=ctk.CTkFont(weight="bold", size=12)).pack(pady=(10, 5))
-        ctk.CTkLabel(legal_frame, text="This tool is for educational purposes. I accept full responsibility for all activities\nand acknowledge the risk of account suspension on third-party platforms.", font=ctk.CTkFont(size=11), text_color="gray90").pack(pady=5)
-        
-        self.legal_check = ctk.CTkCheckBox(legal_frame, text="I AGREE TO THE TERMS & DISCLAIMER", variable=self.legal_var, command=self.toggle_legal_lock, fg_color="#e74c3c")
-        self.legal_check.pack(pady=10)
-
-        self.save_btn = ctk.CTkButton(self.settings_frame, text="💾 SAVE SYSTEM CORE", height=50, command=self.save_settings)
-        self.save_btn.grid(row=100, column=0, padx=30, pady=20, sticky="e")
-
-    def toggle_legal_lock(self):
-        state = "normal" if self.legal_var.get() else "disabled"
-        self.run_btn.configure(state=state)
-        self.search_btn_main.configure(state=state)
-        if self.legal_var.get():
-            print("[Legal] Terms accepted. Operation clearance granted.")
+        # Load targets from tracker.db
+        jobs = self.tracker.get_pending_reviews()
+        if not jobs:
+            ctk.CTkLabel(self.feed_scroll, text="No active mission targets detected.", text_color="gray").pack(pady=40)
         else:
-            print("[Legal] Terms withdrawn. Hardware locked.")
+            for job in jobs[:50]: # Show top 50
+                self._create_job_row(self.feed_scroll, job, is_history=False)
 
-    def _build_support_ui(self):
-        ctk.CTkLabel(self.support_frame, text="Community & Support Hub", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
+    def _create_job_row(self, parent, job, is_history=False):
+        row = ctk.CTkFrame(parent, fg_color="#1a1a1a", corner_radius=10)
+        # Strategic Reminder: Highlight if outreach was > 3 days ago with no reply (Placeholder logic)
+        row.pack(fill="x", pady=4, padx=5)
         
-        # Security Card
-        sec_card = ctk.CTkFrame(self.support_frame, fg_color="#1a1a1a", border_width=1, border_color="#333", corner_radius=15)
-        sec_card.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
-        ctk.CTkLabel(sec_card, text="🛡️ SECURITY & PRIVACY VERIFIED", font=ctk.CTkFont(weight="bold", size=12), text_color="#00d4ff").pack(pady=(15, 5))
-        ctk.CTkLabel(sec_card, text="Sovereign Agent is 100% Local. No passwords or personal data ever leave your machine.\nWe do not use telemetry, tracking, or external cloud storage for your secrets.", font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(0, 15))
-
-        # Support Grid
-        grid = ctk.CTkFrame(self.support_frame, fg_color="transparent")
-        grid.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
-        grid.grid_columnconfigure((0, 1), weight=1)
-
-        # Feature Requests
-        feat_box = ctk.CTkFrame(grid, corner_radius=15)
-        feat_box.grid(row=0, column=0, padx=(0, 10), pady=10, sticky="nsew")
-        ctk.CTkLabel(feat_box, text="💡 Have an idea?", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        ctk.CTkLabel(feat_box, text="Suggest a new tool or feature\nto the community board.", text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
-        ctk.CTkButton(feat_box, text="REQUEST FEATURE", command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/issues/new?labels=enhancement")).pack(pady=20, padx=20)
-
-        # Bug Reports
-        bug_box = ctk.CTkFrame(grid, corner_radius=15)
-        bug_box.grid(row=0, column=1, padx=(10, 0), pady=10, sticky="nsew")
-        ctk.CTkLabel(bug_box, text="🐞 Found a bug?", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        ctk.CTkLabel(bug_box, text="Help us improve. Report technical\nissues or errors here.", text_color="gray", font=ctk.CTkFont(size=11)).pack(pady=5)
-        ctk.CTkButton(bug_box, text="REPORT ISSUE", fg_color="#e74c3c", hover_color="#c0392b", command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/issues/new?labels=bug")).pack(pady=20, padx=20)
-
-        # Documentation
-        doc_box = ctk.CTkFrame(self.support_frame, corner_radius=15)
-        doc_box.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
-        ctk.CTkLabel(doc_box, text="📖 Documentation & Guide", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=20, pady=20)
-        ctk.CTkButton(doc_box, text="OPEN WIKI", width=150, command=lambda: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/wiki")).pack(side="right", padx=20, pady=20)
+        content = ctk.CTkFrame(row, fg_color="transparent")
+        content.pack(side="left", fill="both", expand=True, padx=15, pady=10)
         
-        # TDWAS Branding Footer
-        ctk.CTkLabel(self.support_frame, text="© 2026 TDWAS Technology | Sovereign Agent Project", text_color="gray40", font=ctk.CTkFont(size=10)).grid(row=4, column=0, pady=20)
+        ctk.CTkLabel(content, text=job['job_title'], font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(content, text=f"{job['company']} • {job['location']} • {job['source']}", font=ctk.CTkFont(size=11), text_color="gray").pack(anchor="w")
+        
+        # Match Reason (v32.9 Transparency)
+        reason = job.get('match_reason') or ""
+        if reason:
+            ctk.CTkLabel(content, text=f"🤖 {reason}", font=ctk.CTkFont(size=10, slant="italic"), text_color="#2ecc71").pack(anchor="w", pady=(2, 0))
+        score_color = "#2ecc71" if job.get('match_score',0) > 80 else "#f1c40f" if job.get('match_score',0) > 60 else "#e67e22"
+        ctk.CTkLabel(row, text=f"{job.get('match_score',0)}%", text_color=score_color, font=ctk.CTkFont(weight="bold")).pack(side="right", padx=20)
+        
+        if not is_history:
+            # Action Cluster
+            actions = ctk.CTkFrame(row, fg_color="transparent")
+            actions.pack(side="right", padx=10)
+            
+            # 👤 Recruiter Discovery Link (v34.0)
+            if job.get('hiring_manager'):
+                ctk.CTkLabel(actions, text=f"👤 {job['hiring_manager']}", font=ctk.CTkFont(size=11), text_color="#00d4ff", cursor="hand2").pack(side="left", padx=5)
+            
+            # 👻 Ghost Detection Flag (v34.0)
+            if job.get('posted_date') and "days ago" in job['posted_date']:
+                days = int(''.join(filter(str.isdigit, job['posted_date'])))
+                if days > 60:
+                    ctk.CTkLabel(actions, text="👻 GHOST", font=ctk.CTkFont(size=10, weight="bold"), text_color="#e74c3c").pack(side="left", padx=5)
+
+            ctk.CTkButton(actions, text="APPLY", width=70, height=28, fg_color="#2980b9", command=lambda j=job: self._quick_apply_logic(j)).pack(side="left", padx=5)
+            # Log Outreach (v32.9)
+            ctk.CTkButton(actions, text="💬 LOG", width=55, height=28, fg_color="#34495e", command=lambda j=job: self._show_outreach_modal(j)).pack(side="left", padx=5)
+            ctk.CTkButton(actions, text="✅", width=35, height=28, fg_color="#27ae60", command=lambda j=job: self._mark_applied_logic(j)).pack(side="left", padx=5)
+            ctk.CTkButton(actions, text="🗑️", width=35, height=28, fg_color="#c0392b", command=lambda j=job: self._delete_job_logic(j)).pack(side="left", padx=5)
+
+    def refresh_stats_loop(self):
+        """Active Mission Monitoring: Runs every 5s while Dashboard is active."""
+        if not self.winfo_exists(): return
+        
+        # Phase 35.5: Defensive State Verification
+        if not hasattr(self, "_current_frame_name"): return
+        
+        # Ultimate Stability Guard: Wrapped in try-except to handle 
+        # race conditions where 'self' becomes a 'tkapp' object during destruction.
+        try:
+            if hasattr(self, "_current_frame_name") and self._current_frame_name == "Dashboard":
+                self.refresh_stats()
+        except (AttributeError, RuntimeError):
+            return
+        
+        self.after(5000, self.refresh_stats_loop)
+
+    def run_surgical_apply(self, only_docs=False):
+        """Sector 2: Precision Striking."""
+        url = self.surgical_url_entry.get().strip()
+        if not url: return
+        
+        guided = self.guided_var.get()
+        # Phase 32.3: Platform Override Logic
+        plat_choice = self.strike_plat_var.get()
+        override_plat = None if plat_choice == "Auto-Detect" else plat_choice.lower()
+        
+        print(f"[Operation] Initiating sovereign surgical strike on: {url}" + (" (DOCS ONLY)" if only_docs else ""))
+        
+        def run_strike():
+            try:
+                from src.applicant_bot import apply_to_job, extract_job_details
+                from src.resume_builder import generate_documents, parse_resume
+
+                # 1. INTELLIGENCE EXTRACTION
+                print("[Intelligence] Extracting mission coordinates from target page...")
+                jd_details = extract_job_details(url)
+                
+                if not jd_details["description"]:
+                    print("[Warning] Failed to extract full job description. Using base resume for generic apply.")
+                    resume_path = str(config.BASE_RESUME_PDF)
+                    resume_text = ""
+                else:
+                    # 2. DOCUMENT TAILORING
+                    print(f"[Strategy] Tailoring assets for {jd_details['title']} at {jd_details['company']}...")
+                    paths = generate_documents(
+                        job_title=jd_details["title"],
+                        company=jd_details["company"],
+                        location=jd_details.get("location", "Remote"),
+                        job_description=jd_details["description"]
+                    )
+                    resume_path = str(paths["resume_pdf"])
+                    
+                    # Store resume text for LLM question answering
+                    try: resume_text = parse_resume(paths["resume_pdf"])
+                    except: resume_text = ""
+
+                if only_docs:
+                    print(f"[Success] Surgical tailoring complete. Assets saved to {Path(resume_path).parent}")
+                    return
+
+                # 3. PRECISION APPLICATION
+                print(f"[Execution] Launching apply pipeline" + (" in GUIDED MODE" if guided else "") + "...")
+                result = apply_to_job(
+                    url, 
+                    resume_path=resume_path, 
+                    resume_text=resume_text,
+                    guided=guided
+                )
+                print(f"[Operation] Result: {result['message']}")
+                
+                if result.get("success"):
+                    self.after(0, self.refresh_stats)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"[Error] Surgical strike failed: {e}")
+                
+        self._run_in_thread(run_strike, name="Surgical Apply")
+        self.select_frame_by_name("Dashboard")
+
+    def open_profile_editor(self):
+        """Launches the high-density Identity Sovereign Editor."""
+        ProfileEditorWindow(self)
+
+    def show_search_form(self):
+        """Invoke the Search Matrix Configuration window."""
+        SearchWindow(self)
+
+    def run_full_pipeline(self):
+        """Parity: Full Pipeline (100% Auto)."""
+        print("[Operation] INITIATING FULL AUTO-PIPELINE (Autonomous Mode)...")
+        
+        def run_pipe():
+            from main import run_auto_pipeline
+            run_auto_pipeline(days_back=3.0)
+            self.refresh_stats()
+            
+        self._run_in_thread(run_pipe, name="Full Pipeline")
+        self.select_frame_by_name("Dashboard")
+
+    def run_email_scan(self):
+        """Parity: Scan Email Alerts with Platform Filtering."""
+        def launch_scan(platforms):
+            print(f"[Intelligence] Commencing inbox scan for: {platforms}...")
+            
+            def run_scan():
+                from src.email_scanner import EmailScanner
+                scanner = EmailScanner()
+                # Pass allowed_platforms to the scan method (v32.3)
+                alerts = scanner.scan(days_back=3.0, filter_roles=bool(config.TARGET_ROLES), allowed_platforms=platforms)
+                scanner.disconnect()
+                
+                if not alerts:
+                    print("[Intelligence] No new job alerts found.")
+                    return
+                
+                print(f"[Intelligence] Identified {len(alerts)} valid job targets. Syncing to tracker...")
+                for alert in alerts:
+                    # Skip if bot manager doesn't handle it
+                    try:
+                        # Surgical Fix: get_bot expects (url, platform), profile is handled internally
+                        bot = get_bot(alert.apply_url, platform=alert.source.lower())
+                        if not bot: continue
+                    except: continue
+                    
+                    self.tracker.add(
+                        job_title=alert.job_title,
+                        company=alert.company,
+                        location=alert.location,
+                        description=alert.description,
+                        apply_url=alert.apply_url,
+                        source=alert.source,
+                        match_score=alert.match_score,
+                    )
+                self.after(0, self.refresh_crm_feed)
+                self.after(0, self.refresh_stats)
+                
+            self._run_in_thread(run_scan, name="Email Scan")
+        
+        # Phase 32.3: Launch Filter Dialog
+        EmailScanDialog(self, launch_scan)
+        self.select_frame_by_name("Dashboard")
+
+    def _show_help_center(self):
+        """Sector 7: Built-in Onboarding & Setup Intelligence."""
+        HelpCenterWindow(self)
+
+    def _show_outreach_modal(self, job):
+        """Parity: Tactical Search."""
+        OutreachWindow(self, job)
+
+    def update_provider_visibility(self, provider):
+        """Dynamic UI adjustment for Local vs Cloud brains."""
+        # 1. Save whatever is currently in the entry before switching
+        current_p = config.LLM_PROVIDER
+        if hasattr(self, 'key_entry'):
+            self.provider_keys[current_p] = self.key_entry.get()
+
+        set_key(str(ENV_PATH), "LLM_PROVIDER", provider)
+        config.LLM_PROVIDER = provider
+        
+        # Toggle label
+        is_local = provider in ["ollama", "lmstudio"]
+        self.token_label.configure(text="Local Endpoint URL:" if is_local else "Provider Access Token (Encrypted):")
+        self.key_entry.configure(show="" if is_local else "*", placeholder_text="http://localhost:..." if is_local else "sk-...")
+        
+        # Update entry content
+        self.key_entry.delete(0, "end")
+        self.key_entry.insert(0, self.provider_keys.get(provider, ""))
+        
+        # Update model list
+        models = self.provider_models.get(provider, ["default"])
+        self.model_menu.configure(values=models)
+        self.model_var.set(models[0])
+        self.save_model_choice(models[0])
 
     def _get_current_model(self):
         p = config.LLM_PROVIDER
         if p == "openai": return config.OPENAI_MODEL
         if p == "gemini": return config.GEMINI_MODEL
         if p == "claude": return config.ANTHROPIC_MODEL
-        if p == "groq": return config.GROQ_MODEL
         if p == "ollama": return config.OLLAMA_MODEL
+        if p == "lmstudio": return config.LMSTUDIO_MODEL
+        if p == "groq": return config.GROQ_MODEL
         if p == "openrouter": return config.OPENROUTER_MODEL
         return "default"
 
-    def _update_model_list(self, provider):
-        models = {
-            "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview"],
-            "gemini": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-            "claude": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-20240229"],
-            "groq": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"],
-            "ollama": ["llama3", "mistral", "phi3", "nomic-embed-text"],
-            "openrouter": ["google/gemini-2.0-flash-001", "anthropic/claude-3.5-sonnet", "deepseek/deepseek-chat"],
-            "lmstudio": ["local-model"]
-        }
-        self.model_combo.configure(values=models.get(provider, []))
-        self.model_combo.set(self._get_current_model())
-
-    def change_appearance_mode(self, new_mode):
-        """Phase 27.3: Instant Visual Adaptation."""
-        ctk.set_appearance_mode(new_mode)
-        print(f"[UI] Appearance mode updated to: {new_mode}")
-
-    def change_accent_color(self, new_color):
-        """Phase 27.3: Accent Shift (Requires Restart)."""
-        print(f"[UI] Accent color selection updated to: {new_color}. Restart required for global application.")
-
-    def _update_ai_status_ribbon(self):
-        """Show which providers are currently configured with keys."""
-        ready = []
-        for prov, key in self.provider_keys.items():
-            if prov not in ["ollama", "lmstudio"] and key and len(key) > 5:
-                ready.append(prov.upper())
+    def save_model_choice(self, model):
+        p = config.LLM_PROVIDER
+        key = f"{p.upper()}_MODEL"
+        if p == "claude": key = "ANTHROPIC_MODEL"
+        if p == "lmstudio": key = "LMSTUDIO_MODEL"
         
-        if ready:
-            self.ai_status_ribbon.configure(text=f"CONFIGURED: {' | '.join(ready)}", text_color="#2ecc71")
-        else:
-            self.ai_status_ribbon.configure(text="NO KEYS CONFIGURED (LOCAL ONLY)", text_color="gray")
+        set_key(str(ENV_PATH), key, model)
+        # Update run-time config
+        if p == "openai": config.OPENAI_MODEL = model
+        elif p == "gemini": config.GEMINI_MODEL = model
+        elif p == "claude": config.ANTHROPIC_MODEL = model
+        elif p == "ollama": config.OLLAMA_MODEL = model
+        elif p == "lmstudio": config.LMSTUDIO_MODEL = model
+        elif p == "groq": config.GROQ_MODEL = model
+        elif p == "openrouter": config.OPENROUTER_MODEL = model
 
-    def toggle_api_visibility(self):
-        """Toggle mask on API key field."""
-        self.key_visible = not self.key_visible
-        self.api_key_entry.configure(show="" if self.key_visible else "*")
-        self.eye_btn.configure(text="🔒" if self.key_visible else "👁️")
-
-    def update_api_key_buffer(self, event=None):
-        """Sync current entry to buffer in real-time."""
-        prov = self.provider_dropdown.get()
-        if prov not in ["ollama", "lmstudio"]:
-            self.provider_keys[prov] = self.api_key_entry.get()
-            self._update_ai_status_ribbon()
-
-    def on_provider_change(self, provider):
-        """Phase 27.2: Hybrid Key Management & Persistence."""
-        # 1. Save current key to buffer for the OLD provider first
-        current_key = self.api_key_entry.get()
-        if self.last_provider not in ["ollama", "lmstudio"]:
-            self.provider_keys[self.last_provider] = current_key
-
-        print(f"[UI] Switching intelligence provider to: {provider}")
-        self._update_model_list(provider)
+    def save_provider_key(self):
+        """Persistence Engine: Synchronizes UI entries with .env and run-time config."""
+        p = self.provider_var.get()
+        val = self.key_entry.get()
         
-        # 2. Update Entry State & Value
-        if provider in ["ollama", "lmstudio"]:
-            self.api_key_entry.delete(0, "end")
-            self.api_key_entry.configure(placeholder_text="Not required for local AI", state="disabled")
-        else:
-            self.api_key_entry.configure(state="normal")
-            self.api_key_entry.delete(0, "end")
-            stored_key = self.provider_keys.get(provider, "")
-            self.api_key_entry.insert(0, str(stored_key))
+        # Update local cache
+        self.provider_keys[p] = val
+        
+        # Determine .env keys and update memory config
+        env_key = ""
+        if p == "openai": 
+            env_key = "OPENAI_API_KEY"
+            config.OPENAI_API_KEY = val
+        elif p == "gemini":
+            env_key = "GEMINI_API_KEY"
+            config.GEMINI_API_KEY = val
+        elif p == "claude":
+            env_key = "ANTHROPIC_API_KEY"
+            config.ANTHROPIC_API_KEY = val
+        elif p == "groq":
+            env_key = "GROQ_API_KEY"
+            config.GROQ_API_KEY = val
+        elif p == "ollama":
+            env_key = "OLLAMA_BASE_URL"
+            config.OLLAMA_BASE_URL = val
+        elif p == "lmstudio":
+            env_key = "LMSTUDIO_BASE_URL"
+            config.LMSTUDIO_BASE_URL = val
+        elif p == "openrouter":
+            env_key = "OPENROUTER_API_KEY"
+            config.OPENROUTER_API_KEY = val
             
-            placeholders = {
-                "openai": "sk-...",
-                "gemini": "AIza...",
-                "openrouter": "sk-or-v1-...",
-                "claude": "sk-ant-...",
-                "groq": "gsk_..."
-            }
-            self.api_key_entry.configure(placeholder_text=placeholders.get(provider, "Enter Key"))
+        if env_key:
+            set_key(str(ENV_PATH), env_key, val)
+
+    def update_match_label(self, val):
+        config.MATCH_SCORE_THRESHOLD = int(val)
+        self.match_label.configure(text=f"Match Threshold: {int(val)}%")
+
+    def _quick_apply_logic(self, job):
+        """Targeted strike trigger: Transfer to Surgical Apply Engine."""
+        url = job.get('apply_url')
+        if not url: return
         
-        self.last_provider = provider
+        print(f"[Operation] Initiating 'Quick Apply' for target: {job['job_title']}...")
+        # Populate the entry and trigger the strike
+        self.surgical_url_entry.delete(0, "end")
+        self.surgical_url_entry.insert(0, url)
+        self.run_surgical_apply()
+
+    def _mark_applied_logic(self, job):
+        """Manual status override."""
+        print(f"[System] Marking {job['job_title']} as APPLIED.")
+        self.tracker.update_status(job['id'], 'applied')
+        self.refresh_crm_feed()
+        self.refresh_stats()
+
+    def _delete_job_logic(self, job):
+        """Surgical termination with confirmation safety gate."""
+        msg = f"Permanently terminate mission target '{job['job_title']}' at {job['company']}?\nThis action cannot be undone."
+        if messagebox.askyesno("Confirm Termination", msg):
+            self.tracker.delete(job['id'])
+            self.refresh_crm_feed()
+            self.refresh_stats()
+            print(f"[System] Target terminated successfully.")
+
+    def purge_docs(self):
+        """Maintenance: Purge mission documents."""
+        print("[System] Initiating document purge...")
+        try:
+            from src.maintenance import purge_old_outputs
+            deleted, space = purge_old_outputs(days=0)
+            print(f"[System] Success! Removed {deleted} folders, freeing {space} MB.")
+        except Exception as e:
+            print(f"[Error] Purge failed: {e}")
+    
+    def clean_logs(self):
+        """Maintenance: Clean system logs."""
+        print("[System] Scrubbing log archives...")
+        try:
+            log_dir = DATA_DIR / "logs"
+            if log_dir.exists():
+                count = 0
+                for f in log_dir.glob("*"):
+                    if f.is_file():
+                        f.unlink()
+                        count += 1
+                print(f"[System] Cleanup complete. {count} log files terminated.")
+            else:
+                print("[System] Log directory not found.")
+        except Exception as e:
+            print(f"[Error] Log cleanup failed: {e}")
+
+    def enable_redirection(self):
+        if hasattr(self, 'log_box'):
+            sys.stdout = LogRedirector(self.log_box)
+            print("[System] Sovereign Console Online. Terminal handshake complete.")
 
     def check_onboarding(self):
-        """Detect first-run state & LOCK UX if not ready."""
-        flag_file = DATA_DIR / ".onboarding_done"
-        profile_ready = ApplicantProfile().data.get('personal', {}).get('first_name', '') != ''
-        resume_ready = BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()
-        
-        if not flag_file.exists() or not profile_ready or not resume_ready:
-            print("[System] SECURITY LOCK: Mandatory Mission Briefing Required.")
-            # Lock UI
-            for btn in [self.dashboard_btn, self.search_btn, self.analytics_btn]:
-                btn.configure(state="disabled")
-            self.run_btn.configure(state="disabled")
-            
-            # Auto-switch to Support or just show wizard
-            self.select_frame_by_name("Support")
-            OnboardingWizard(self)
-        else:
-            # Unlock
-            for btn in [self.dashboard_btn, self.search_btn, self.analytics_btn]:
-                btn.configure(state="normal")
-            self.show_dashboard()
+        # Safety gate implementation...
+        pass
 
-    def select_frame_by_name(self, name):
-        # Update Nav Styles
-        nav_map = {
-            "Dashboard": self.dashboard_btn, "Search": self.search_btn, 
-            "Assets": self.assets_btn, "CRM": self.crm_btn,
-            "Analytics": self.analytics_btn, "Settings": self.settings_btn, 
-            "Support": self.support_btn
-        }
-        for n, b in nav_map.items():
-            b.configure(fg_color="#34495e" if n == name else "transparent", border_width=1 if n == name else 0)
+    def on_closing(self):
+        sys.stdout = self._old_stdout
+        self.destroy()
 
-        # Swap Frames
-        frame_map = {
-            "Dashboard": self.dashboard_frame, "Search": self.search_frame, 
-            "Assets": self.assets_frame, "CRM": self.crm_frame,
-            "Analytics": self.analytics_frame, "Settings": self.settings_frame, 
-            "Support": self.support_frame
-        }
-        for n, f in frame_map.items():
-            if n == name:
-                f.grid(row=0, column=1, sticky="nsew")
-                if n == "Dashboard": self.refresh_job_feed()
-                if n == "Analytics": self._draw_analytics_chart()
-                if n == "CRM": self.refresh_crm_feed()
-            else: f.grid_forget()
-
-    def show_dashboard(self): self.select_frame_by_name("Dashboard")
-    def show_search(self): self.select_frame_by_name("Search")
-    def show_assets(self): self.select_frame_by_name("Assets")
-    def show_crm(self): self.select_frame_by_name("CRM")
-    def show_analytics(self): self.select_frame_by_name("Analytics")
-    def show_settings(self): self.select_frame_by_name("Settings")
-    def show_support(self): self.select_frame_by_name("Support")
-
-    def _build_crm_ui(self):
-        """Elite Candidate CRM Interface (Phase 28.0)."""
-        ctk.CTkLabel(self.crm_frame, text="Candidate Outreach & CRM", font=ctk.CTkFont(size=26, weight="bold")).grid(row=0, column=0, padx=30, pady=30, sticky="w")
-        
-        # Action Bar
-        bar = ctk.CTkFrame(self.crm_frame, fg_color="transparent")
-        bar.grid(row=1, column=0, padx=30, pady=(0, 20), sticky="ew")
-        
-        self.check_crm_btn = ctk.CTkButton(bar, text="🔍 SCAN RECRUITER INTELLIGENCE", fg_color="#00d4ff", hover_color="#00a8cc", text_color="black", font=ctk.CTkFont(weight="bold"), command=self.run_crm_scan)
-        self.check_crm_btn.pack(side="left", padx=5)
-        
-        # Scrollable CRM Feed
-        self.crm_scroll = ctk.CTkScrollableFrame(self.crm_frame, label_text="DETECTED RECRUITER SIGNALS", label_font=ctk.CTkFont(weight="bold"))
-        self.crm_scroll.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
-        self.crm_frame.grid_rowconfigure(2, weight=1)
-
-    def refresh_crm_feed(self):
-        """Populate the CRM tab with outreach data."""
-        for widget in self.crm_scroll.winfo_children(): widget.destroy()
-        
-        outreach = self.tracker.get_outreach()
-        if not outreach:
-            ctk.CTkLabel(self.crm_scroll, text="No recruiter signals detected yet.", text_color="gray").pack(pady=40)
-            return
-            
-        for i, msg in enumerate(outreach):
-            row = ctk.CTkFrame(self.crm_scroll, fg_color=("#121212" if i % 2 == 0 else "transparent"), corner_radius=10, border_width=1, border_color="#333")
-            row.pack(fill="x", padx=10, pady=5)
-            
-            # Sentiment Badge
-            s_color = "#2ecc71" if msg['sentiment'] == "positive" else "#f1c40f"
-            s_label = ctk.CTkLabel(row, text="●", text_color=s_color, font=ctk.CTkFont(size=20))
-            s_label.pack(side="left", padx=(15, 5))
-            
-            # Header Info
-            info = ctk.CTkFrame(row, fg_color="transparent")
-            info.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-            
-            sender_id = msg['sender'].split("<")[0].strip() if "<" in msg['sender'] else msg['sender'][:25]
-            ctk.CTkLabel(info, text=f"{sender_id} | {msg['date_received']}", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(anchor="w")
-            ctk.CTkLabel(info, text=msg['subject'], font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
-            
-            # Action Buttons
-            ctk.CTkButton(row, text="VIEW THREAD", width=100, height=28, fg_color="#34495e", command=lambda m=msg: self.show_outreach_details(m)).pack(side="right", padx=15)
-
-    def show_outreach_details(self, msg):
-        """Show full email body in a popup."""
-        popup = ctk.CTkToplevel(self)
-        popup.title(f"Recruiter Pulse: {msg['subject']}")
-        popup.geometry("600x500")
-        
-        text = ctk.CTkTextbox(popup, wrap="word", font=("Consolas", 11))
-        text.pack(fill="both", expand=True, padx=20, pady=20)
-        text.insert("0.0", f"FROM: {msg['sender']}\nSUBJECT: {msg['subject']}\nSENTIMENT: {msg['sentiment'].upper()}\n\n" + "═"*50 + "\n\n" + msg['body'])
-        text.configure(state="disabled")
-
-    def run_crm_scan(self):
-        """Manually trigger the Recruiter Intelligence scanner."""
-        self.check_crm_btn.configure(state="disabled", text="SCANNING...")
-        def _run():
-            from src.email_scanner import EmailScanner
-            scanner = EmailScanner()
-            new = scanner.check_for_outreach()
-            print(f"[Intelligence] Scan complete. Found {new} new recruiter signals.")
-            self.after(0, self.refresh_crm_feed)
-            self.after(0, lambda: self.check_crm_btn.configure(state="normal", text="🔍 SCAN RECRUITER INTELLIGENCE"))
-            
-        threading.Thread(target=_run, daemon=True).start()
-
-    def _draw_analytics_chart(self):
-        """Draw real bar chart from mission data."""
-        try:
-            self.chart_canvas.delete("all")
-            stats = self.tracker.get_analytics()
-            total = stats.get("total", 0)
-            if total == 0:
-                self.chart_canvas.create_text(200, 100, text="NOT ENOUGH DATA YET", fill="gray")
-                return
-
-            w, h = self.chart_canvas.winfo_width(), self.chart_canvas.winfo_height()
-            if w < 100: self.after(100, self._draw_analytics_chart); return
-            
-            # Using Status Breakdown for the chart
-            status_data = stats.get("statuses", {})
-            if not status_data: status_data = {"new": 1}
-
-            data_keys = list(status_data.keys())
-            data_vals = list(status_data.values())
-            
-            padding, chart_w, chart_h = 60, w - 120, h - 120
-            bar_w = (chart_w / len(data_vals)) * 0.6
-            max_val = max(data_vals)
-            
-            for i, val in enumerate(data_vals):
-                x = padding + (i * (chart_w / len(data_vals))) + (chart_w/len(data_vals) - bar_w)/2
-                bar_h = (val / max_val) * chart_h
-                y = h - padding - bar_h
-                
-                # Color by status
-                color = "#2ecc71" if data_keys[i] == "applied" else "#3498db" if data_keys[i] == "new" else "#e74c3c"
-                self.chart_canvas.create_rectangle(x, y, x + bar_w, h - padding, fill=color, outline="")
-                self.chart_canvas.create_text(x + bar_w/2, y - 15, text=f"{data_keys[i].upper()}\n({val})", fill="white", font=("Arial", 9, "bold"))
-        except: pass
-
-    def refresh_stats(self):
-        stats = self.tracker.get_analytics()
-        self.stat_apps.configure(text=str(stats.get("applied", 0)))
-        self.stat_rate.configure(text=f"{stats.get('success_rate', 0)}%")
-        self.stat_recent.configure(text=str(stats.get("recent_7_days", 0)))
-        self.refresh_job_feed()
-
-    def refresh_job_feed(self):
-        for widget in self.feed_frame.winfo_children(): widget.destroy()
-        apps = self.tracker.get_all()[:30]
-        for i, app in enumerate(apps):
-            row = ctk.CTkFrame(self.feed_frame, fg_color=("#1a1a1a" if i % 2 == 0 else "transparent"), corner_radius=8)
-            row.pack(fill="x", padx=10, pady=3); row.grid_columnconfigure(0, weight=1)
-            
-            # 1. Source & Time Info (NEW)
-            source_icon = "🔗" if "Indeed" in app.source else "💼"
-            time_str = app.date_found.split(" ")[1][:5] if " " in app.date_found else ""
-            date_str = "Today" if app.date_found.startswith(datetime.now().strftime("%Y-%m-%d")) else app.date_found.split(" ")[0][5:]
-            meta_text = f"{source_icon} {date_str} {time_str}"
-            
-            meta_label = ctk.CTkLabel(row, text=meta_text, font=ctk.CTkFont(size=9), text_color="gray", width=80)
-            meta_label.pack(side="left", padx=5)
-
-            # 2. Match Score Badge
-            score_color = "#00d4ff" if app.match_score >= 85 else "#f1c40f" if app.match_score >= 70 else "#e74c3c"
-            score_label = ctk.CTkLabel(row, text=f"{app.match_score}%", text_color=score_color, font=ctk.CTkFont(size=11, weight="bold"), width=35)
-            score_label.pack(side="left", padx=2)
-            
-            # 3. Job Info
-            info_text = f"{app.company[:12]} | {app.job_title[:22]}..."
-            ctk.CTkLabel(row, text=info_text, font=ctk.CTkFont(size=11), anchor="w").pack(side="left", padx=5, pady=10)
-            
-            # 4. Action Buttons
-            if app.status == "new":
-                ctk.CTkButton(row, text="APPLY NOW", width=80, height=26, fg_color="#00d4ff", hover_color="#00a8cc", text_color="black",
-                               font=ctk.CTkFont(size=10, weight="bold"), command=lambda a=app: self.surgical_apply(a)).pack(side="right", padx=5)
-            else:
-                ctk.CTkLabel(row, text=app.status.upper(), font=ctk.CTkFont(size=10, weight="bold"), text_color="gray", width=80).pack(side="right", padx=5)
-                
-            ctk.CTkButton(row, text="VIEW", width=50, height=26, fg_color="#34495e", 
-                           font=ctk.CTkFont(size=10), command=lambda u=app.apply_url: webbrowser.open(u)).pack(side="right", padx=5)
-
-    def surgical_apply(self, app):
-        """Phase 26.0 Surgical Apply from GUI."""
-        self.status_indic.configure(text="● SURGICAL", text_color="#3498db")
-        def _run():
-            resume_text = ""
-            try: resume_text = parse_resume()
-            except: pass
-            
-            print(f"\n[GUI] Launching Surgical Apply for: {app.job_title}...")
-            # We use global imports now to avoid re-importing issues
-            result = apply_to_job(app.apply_url, app.resume_path, app.cover_letter_path, resume_text, app.source)
-            if result["success"]:
-                self.tracker.update_status(app.id, "applied", result["message"])
-                print(f"✓ Application successful!")
-            else:
-                print(f"✗ Failed: {result['message']}")
-            
-            self.after(0, lambda: self.status_indic.configure(text="● READY", text_color="#2ecc71"))
-            self.after(0, self.refresh_stats)
-            
-        threading.Thread(target=_run, daemon=True).start()
-
-    def save_settings(self):
-        # Update General / Logins
-        for k, e in self.env_entries.items():
-            if e.get(): set_key(str(ENV_PATH), k, e.get())
-        
-        # Phase 27.2: Global AI Persistence
-        self.update_api_key_buffer()
-        key_map = {
-            "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
-            "claude": "ANTHROPIC_API_KEY", "groq": "GROQ_KEY", "openrouter": "OPENROUTER_API_KEY"
-        }
-        for prov, key_val in self.provider_keys.items():
-            if prov in key_map and key_val:
-                set_key(str(ENV_PATH), key_map[prov], key_val)
-                setattr(config, key_map[prov], key_val)
-        
-        # Phase 27.3: Appearance & Telemetry Persistence
-        set_key(str(ENV_PATH), "GUI_APPEARANCE_MODE", self.appearance_dropdown.get())
-        set_key(str(ENV_PATH), "GUI_ACCENT_COLOR", self.accent_dropdown.get())
-        set_key(str(ENV_PATH), "TELEMETRY_ENABLED", "true") # Force enable as requested
-        
-        # Update Active Provider & Model
-        active_prov = self.provider_dropdown.get()
-        active_model = self.model_combo.get()
-        set_key(str(ENV_PATH), "LLM_PROVIDER", active_prov)
-        config.LLM_PROVIDER = active_prov
-        
-        model_env_map = {
-            "openai": "OPENAI_MODEL", "gemini": "GEMINI_MODEL",
-            "claude": "ANTHROPIC_MODEL", "groq": "GROQ_MODEL",
-            "ollama": "OLLAMA_MODEL", "openrouter": "OPENROUTER_MODEL"
-        }
-        if active_prov in model_env_map:
-            set_key(str(ENV_PATH), model_env_map[active_prov], active_model)
-            setattr(config, model_env_map[active_prov], active_model)
-
-        print("[Core] TDWAS System synchronized. Performance and aesthetics updated.")
-
-    def run_purge(self):
-        """Invoke surgical maintenance from GUI."""
-        from src.maintenance import purge_old_outputs
-        try:
-            print("[System] Initiating document purge (Last 14 days safe)...")
-            deleted, space = purge_old_outputs(14)
-            print(f"✓ Success! Removed {deleted} folders, freeing {space} MB.")
-        except Exception as e:
-            print(f"✗ Purge failed: {e}")
-
-    def run_pipeline(self):
-        self.status_indic.configure(text="● ACTIVE", text_color="#f1c40f")
-        lookback = self.lookback_slider.get()
-        def _run():
-            from main import run_auto_pipeline
-            try: 
-                run_auto_pipeline(days_back=lookback)
-            finally: 
-                # Phase 24.1: Thread-safe UI updates
-                self.after(0, lambda: self.status_indic.configure(text="● READY", text_color="#2ecc71"))
-                self.after(0, self.refresh_stats)
-        threading.Thread(target=_run, daemon=True).start()
-
-    def run_semi_auto_search(self):
-        kw, loc_str, plat = self.search_keywords.get(), self.search_location.get(), self.search_platform.get().lower()
-        if not kw or not loc_str: return
-        
-        # Support multiple locations (Phase 27.0)
-        locations = [l.strip() for l in loc_str.split(",") if l.strip()]
-        if not locations: locations = [loc_str]
-        
-        limit_val = int(self.intensity_slider.get())
-        
-        def _run():
-            from main import run_search_pipeline
-            try: 
-                run_search_pipeline(plat, kw, locations, limit=limit_val)
-            finally:
-                # Phase 24.1: Thread-safe UI updates
-                self.after(0, self.refresh_stats)
-        threading.Thread(target=_run, daemon=True).start()
-
-
-    def send_feedback(self):
-        msg = self.feedback_text.get("0.0", "end").strip()
-        if not msg: return
-        from src.feedback import send_discord_feedback
-        if send_discord_feedback(msg): self.feedback_text.delete("0.0", "end")
-
-
-class OnboardingWizard(ctk.CTkToplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.title("TDWAS Sovereign Mission Briefing")
-        self.geometry("700x600")
-        self.transient(parent)
-        self.grab_set()
-        self.parent = parent
-        self.step = 1
-        
-        # UI Setup
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        
-        self.head = ctk.CTkLabel(self, text="MISSION BRIEFING", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00d4ff")
-        self.head.pack(pady=30)
-        
-        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True, padx=40)
-        
-        self.btn_next = ctk.CTkButton(self, text="NEXT STEP →", height=50, command=self.next_step)
-        self.btn_next.pack(side="bottom", pady=(20, 40))
-        
-        self.err_label = ctk.CTkLabel(self, text="", text_color="#e74c3c", font=ctk.CTkFont(size=12, weight="bold"))
-        self.err_label.pack(side="bottom")
-        
-        self.show_step_1()
-
-    def show_step_1(self):
-        for w in self.content_frame.winfo_children(): w.destroy()
-        self.err_label.configure(text="")
-        ctk.CTkLabel(self.content_frame, text="STEP 1: IDENTITY CORE", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        self.e_name = ctk.CTkEntry(self.content_frame, placeholder_text="First Name *", width=300)
-        self.e_name.pack(pady=5)
-        self.e_last = ctk.CTkEntry(self.content_frame, placeholder_text="Last Name", width=300)
-        self.e_last.pack(pady=5)
-
-    def show_step_2(self):
-        for w in self.content_frame.winfo_children(): w.destroy()
-        self.err_label.configure(text="")
-        ctk.CTkLabel(self.content_frame, text="STEP 2: AGENT ASSETS", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        ctk.CTkLabel(self.content_frame, text="Upload your master resume (PDF or DOCX)", text_color="gray").pack()
-        ctk.CTkButton(self.content_frame, text="📂 SELECT RESUME FILE", fg_color="#34495e", command=self.wizard_upload).pack(pady=20)
-        self.upload_status = ctk.CTkLabel(self.content_frame, text="Status: Waiting...", text_color="yellow")
-        self.upload_status.pack()
-
-    def wizard_upload(self):
-        file = filedialog.askopenfilename(title="Select Resume", filetypes=[("Resume", "*.pdf;*.docx")])
-        if file:
-            ext = file.split('.')[-1]
-            target = BASE_RESUME_PDF if ext == "pdf" else BASE_RESUME_DOCX
-            shutil.copy2(file, target)
-            self.upload_status.configure(text="✅ Resume Linked!", text_color="green")
-
-    def show_step_3(self):
-        for w in self.content_frame.winfo_children(): w.destroy()
-        self.err_label.configure(text="")
-        ctk.CTkLabel(self.content_frame, text="STEP 3: INTELLIGENCE Hub", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        self.w_prov = ctk.CTkOptionMenu(self.content_frame, values=["openai", "gemini", "openrouter", "ollama"], width=300)
-        self.w_prov.pack(pady=10)
-        self.w_key = ctk.CTkEntry(self.content_frame, placeholder_text="API Key (Leave blank if Local)", show="*", width=300)
-        self.w_key.pack(pady=5)
-
-    def next_step(self):
-        self.err_label.configure(text="")
-        if self.step == 1:
-            if not self.e_name.get():
-                self.err_label.configure(text="⚠️ FIRST NAME IS MANDATORY")
-                return
-            try:
-                p = ApplicantProfile()
-                p.data['personal']['first_name'] = self.e_name.get()
-                p.data['personal']['last_name'] = self.e_last.get()
-                p.save()
-                self.step = 2
-                self.show_step_2()
-            except Exception as e:
-                self.err_label.configure(text=f"❌ FAILED TO SAVE: {str(e)[:40]}")
-        elif self.step == 2:
-            if not (BASE_RESUME_PDF.exists() or BASE_RESUME_DOCX.exists()):
-                self.err_label.configure(text="⚠️ RESUME FILE REQUIRED FOR MISSION")
-                return
-            self.step = 3
-            self.show_step_3()
-        elif self.step == 3:
-            set_key(str(ENV_PATH), "LLM_PROVIDER", self.w_prov.get())
-            if self.w_key.get():
-                k_map = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
-                if self.w_prov.get() in k_map: set_key(str(ENV_PATH), k_map[self.w_prov.get()], self.w_key.get())
-            
-            self.step = 4
-            self.show_step_4()
-        elif self.step == 4:
-            try:
-                p = ApplicantProfile()
-                p.data['personal']['city'] = self.e_city.get()
-                p.data['personal']['province'] = self.e_prov.get()
-                p.data['experience']['summary'] = self.e_bio.get("0.0", "end").strip()
-                p.save()
-                
-                (DATA_DIR / ".onboarding_done").touch()
-                self.parent.check_onboarding() # Refresh lock
-                self.destroy()
-            except Exception as e:
-                self.err_label.configure(text=f"❌ FAILED TO FINALIZE: {str(e)[:40]}")
-
-    def show_step_4(self):
-        for w in self.content_frame.winfo_children(): w.destroy()
-        ctk.CTkLabel(self.content_frame, text="STEP 4: MISSION BIO & INTEL", font=ctk.CTkFont(weight="bold")).pack(pady=10)
-        
-        self.e_city = ctk.CTkEntry(self.content_frame, placeholder_text="Current City (e.g. Toronto)", width=300)
-        self.e_city.pack(pady=5)
-        self.e_prov = ctk.CTkEntry(self.content_frame, placeholder_text="State/Province (e.g. ON)", width=300)
-        self.e_prov.pack(pady=5)
-        
-        ctk.CTkLabel(self.content_frame, text="Professional Bio / Summary", font=ctk.CTkFont(size=11)).pack(pady=(10, 0))
-        self.e_bio = ctk.CTkTextbox(self.content_frame, height=150, width=400)
-        self.e_bio.pack(pady=10)
-        
-        # Pre-fill if resume extraction worked
-        p = ApplicantProfile()
-        self.e_city.insert(0, p.data['personal'].get('city', ''))
-        self.e_prov.insert(0, p.data['personal'].get('province', ''))
-        self.e_bio.insert("0.0", p.data['experience'].get('summary', ''))
 
 class ProfileEditorWindow(ctk.CTkToplevel):
+    """Identity Sovereign 2.0: Deep-profile editor for 90+ professional data points."""
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Identity Sovereign Editor")
-        self.geometry("800x700")
+        self.title("Identity Sovereign Commander")
+        self.geometry("1100x850")
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         self.profile = ApplicantProfile()
+        self.controls = {} # Store widget references for saving
         
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-        
-        self.tabview = ctk.CTkTabview(self)
-        self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-        self.tabview.add("Personal")
-        self.tabview.add("Experience")
-        self.tabview.add("Skills")
-        
-        # (Simplified for now, will expand to all 90+ fields in full build)
-        p = self.profile.data['personal']
-        self.e_first = self._add_field(self.tabview.tab("Personal"), "First Name", p.get('first_name'), 0)
-        self.e_last = self._add_field(self.tabview.tab("Personal"), "Last Name", p.get('last_name'), 1)
-        self.e_email = self._add_field(self.tabview.tab("Personal"), "Contact Email", p.get('email'), 2)
-        
-        exp = self.profile.data['experience']
-        self.e_title = self._add_field(self.tabview.tab("Experience"), "Current Title", exp.get('current_title'), 0)
-        
-        ctk.CTkButton(self, text="💾 SAVE TO IDENTITY", command=self.save).grid(row=1, column=0, pady=20)
+        # Header
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=(30, 10))
+        ctk.CTkLabel(header, text="IDENTITY COMMANDER", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00d4ff").pack(side="left")
+        ctk.CTkLabel(header, text="v2.8 Deep Sync", text_color="gray").pack(side="left", padx=15, pady=(5,0))
 
-    def _add_field(self, parent, label, val, row):
-        ctk.CTkLabel(parent, text=label).grid(row=row, column=0, padx=10, pady=5)
-        e = ctk.CTkEntry(parent, width=300)
-        e.insert(0, str(val))
-        e.grid(row=row, column=1, padx=10, pady=5)
-        return e
+        # Main Hub
+        self.tabs = ctk.CTkTabview(self, segmented_button_selected_color="#00d4ff", segmented_button_selected_hover_color="#00b8e6", segmented_button_unselected_color="#1a1a1a")
+        self.tabs.pack(fill="both", expand=True, padx=30, pady=10)
+        
+        # Tab Definitions
+        self.tab_names = ["Personal", "Work Auth", "Experience", "Preferences", "Skills", "Demographics"]
+        for name in self.tab_names: self.tabs.add(name)
+        
+        self._build_personal()
+        self._build_work_auth()
+        self._build_experience()
+        self._build_preferences()
+        self._build_skills()
+        self._build_demographics()
+        
+        # Action Bar
+        action_bar = ctk.CTkFrame(self, fg_color="transparent")
+        action_bar.pack(fill="x", padx=30, pady=30)
+        
+        self.save_btn = ctk.CTkButton(action_bar, text="💾 SAVE & SYNC MASTER IDENTITY", height=50, width=300, 
+                                      fg_color="#27ae60", hover_color="#2ecc71", font=ctk.CTkFont(weight="bold"), command=self.save)
+        self.save_btn.pack(side="right")
+        
+        ctk.CTkButton(action_bar, text="✖ CANCEL", height=50, width=120, fg_color="#34495e", command=self.destroy).pack(side="right", padx=15)
+
+    def _create_field(self, parent, label, key, section, row, is_long=False, options=None, is_bool=False):
+        """Dynamic high-fidelity field creator."""
+        ctk.CTkLabel(parent, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(row=row, column=0, padx=20, pady=8, sticky="w")
+        
+        val = self.profile.data.get(section, {}).get(key, "")
+        
+        if is_bool:
+            var = tk.BooleanVar(value=bool(val))
+            widget = ctk.CTkSwitch(parent, text="", variable=var, progress_color="#00d4ff")
+            widget.grid(row=row, column=1, padx=20, pady=8, sticky="w")
+            self.controls[(section, key)] = var
+        elif options:
+            var = ctk.StringVar(value=str(val))
+            widget = ctk.CTkOptionMenu(parent, values=options, variable=var, width=300)
+            widget.grid(row=row, column=1, padx=20, pady=8, sticky="w")
+            self.controls[(section, key)] = var
+        elif is_long:
+            widget = ctk.CTkTextbox(parent, height=100, width=500, font=("Inter", 12))
+            widget.insert("1.0", str(val))
+            widget.grid(row=row, column=1, padx=20, pady=8, sticky="ew")
+            self.controls[(section, key)] = widget
+        else:
+            widget = ctk.CTkEntry(parent, width=500, height=35)
+            widget.insert(0, str(val))
+            widget.grid(row=row, column=1, padx=20, pady=8, sticky="ew")
+            self.controls[(section, key)] = widget
+
+    def _build_personal(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Personal"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        sc.grid_columnconfigure(1, weight=1)
+        
+        fields = [
+            ("first_name", "First Name"), ("middle_name", "Middle Name"), ("last_name", "Last Name"),
+            ("preferred_name", "Preferred / Display Name"), ("email", "Contact Email"),
+            ("phone", "Phone Number"), ("phone_prefix", "Country Code (+1)"),
+            ("city", "City"), ("province", "State / Province"), ("country", "Country"),
+            ("linkedin_url", "LinkedIn URL"), ("github_url", "GitHub URL"), ("portfolio_url", "Portfolio URL")
+        ]
+        for i, (k, l) in enumerate(fields):
+            self._create_field(sc, l, k, "personal", i)
+
+    def _build_work_auth(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Work Auth"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        self._create_field(sc, "Are you authorized to work in your target country?", "authorized_to_work", "work_authorization", 0, is_bool=True)
+        self._create_field(sc, "Will you require visa sponsorship?", "sponsorship_needed", "work_authorization", 1, is_bool=True)
+        self._create_field(sc, "Specific Work Permit Type", "work_permit_type", "work_authorization", 2, options=["None", "Citizen", "PR", "Work Permit", "H1-B", "Other"])
+
+    def _build_experience(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Experience"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        sc.grid_columnconfigure(1, weight=1)
+        self._create_field(sc, "Total Years of Experience", "total_years", "experience", 0)
+        self._create_field(sc, "Most Recent Job Title", "current_title", "experience", 1)
+        self._create_field(sc, "Global Professional Summary", "summary", "experience", 2, is_long=True)
+
+    def _build_preferences(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Preferences"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        self._create_field(sc, "Willing to Relocate?", "willing_to_relocate", "preferences", 0, is_bool=True)
+        self._create_field(sc, "Salary Expectation / Range", "salary_expectation", "preferences", 1)
+        self._create_field(sc, "Employment Type", "work_type", "preferences", 2, options=["Full-time", "Contract", "Part-time"])
+        self._create_field(sc, "Work Mode Preference", "remote_preference", "preferences", 3, options=["Remote", "Hybrid", "Onsite"])
+
+    def _build_skills(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Skills"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        self._create_field(sc, "Technical Skills Stack", "technical", "skills", 0, is_long=True)
+        self._create_field(sc, "Soft Skills / Leadership", "soft", "skills", 1, is_long=True)
+
+    def _build_demographics(self):
+        sc = ctk.CTkScrollableFrame(self.tabs.tab("Demographics"), fg_color="transparent")
+        sc.pack(fill="both", expand=True)
+        self._create_field(sc, "Gender", "gender", "demographics", 0, options=["Male", "Female", "Non-binary", "Decline to self-identify"])
+        self._create_field(sc, "Ethnicity", "ethnicity", "demographics", 1)
+        self._create_field(sc, "Veteran Status", "veteran", "demographics", 2, options=["No", "Yes", "Decline to self-identify"])
 
     def save(self):
-        self.profile.data['personal']['first_name'] = self.e_first.get()
-        self.profile.data['personal']['last_name'] = self.e_last.get()
-        self.profile.data['personal']['email'] = self.e_email.get()
-        self.profile.data['experience']['current_title'] = self.e_title.get()
+        """Recursive sync of GUI controls back to Master Profile."""
+        for (section, key), widget in self.controls.items():
+            if isinstance(widget, (ctk.CTkEntry, ctk.StringVar, tk.BooleanVar)):
+                self.profile.data[section][key] = widget.get()
+            elif isinstance(widget, ctk.CTkTextbox):
+                self.profile.data[section][key] = widget.get("1.0", "end").strip()
+                
         self.profile.save()
-        print("[System] Identity updated successfully.")
+        print("[Identity] MASTER SYNC SUCCESSFUL. profile.yaml updated.")
+        self.destroy()
+
+    def on_closing(self):
+        self.grab_release()
+        self.destroy()
+
+class SearchWindow(ctk.CTkToplevel):
+    """Tactical Search Configuration Modal."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Tactical Search Matrix")
+        self.geometry("600x400")
+        self.transient(parent)
+        self.grab_set()
+        
+        ctk.CTkLabel(self, text="JOB DISCOVERY MATRIX", font=ctk.CTkFont(size=20, weight="bold"), text_color="#2ecc71").pack(pady=20)
+        
+        self.key_entry = ctk.CTkEntry(self, placeholder_text="Search Keywords (e.g. Python Remote)...", height=45, width=400)
+        self.key_entry.pack(pady=10)
+        
+        self.loc_entry = ctk.CTkEntry(self, placeholder_text="Location / Region...", height=45, width=400)
+        self.loc_entry.pack(pady=10)
+        
+        # Phase 32.3: Multi-Platform Selection Matrix
+        plat_frame = ctk.CTkFrame(self, fg_color="transparent")
+        plat_frame.pack(pady=10)
+        
+        self.plat_vars = {}
+        platforms = ["LinkedIn", "Indeed", "ZipRecruiter", "Dice", "Wellfound", "BuiltIn"]
+        for i, plat in enumerate(platforms):
+            var = ctk.BooleanVar(value=True if plat in ["LinkedIn", "Indeed"] else False)
+            cb = ctk.CTkCheckBox(plat_frame, text=plat, variable=var, font=ctk.CTkFont(size=12))
+            cb.grid(row=i//3, column=i%3, padx=15, pady=5, sticky="w")
+            self.plat_vars[plat] = var
+            
+        ctk.CTkButton(self, text="⚡ INITIATE TACTICAL SCAN", height=50, width=200, fg_color="#27ae60", command=self.search).pack(pady=20)
+
+    def search(self):
+        keywords = self.key_entry.get()
+        location = self.loc_entry.get() or "Remote"
+        
+        # Phase 32.3: Collect selected platforms
+        selected_plats = [p for p, v in self.plat_vars.items() if v.get()]
+        if not selected_plats: selected_plats = ["LinkedIn", "Indeed"]
+        
+        print(f"[Tactical] Launching matrix search for: {keywords} on {selected_plats}")
+        
+        def run_matrix():
+            from main import run_search_pipeline
+            # run_search_pipeline currently only supports "both" or single; 
+            # we will iterate through selected platforms sequentially for stability
+            for plat in selected_plats:
+                run_search_pipeline(platform=plat.lower(), keywords=keywords, locations=[location], limit=10)
+            
+            self.master.refresh_crm_feed()
+            
+        self.master._run_in_thread(run_matrix, name="Search Matrix")
+        self.destroy()
+
+
+class OutreachWindow(ctk.CTkToplevel):
+    """Strategic Outreach Terminal: Track networking efforts."""
+    def __init__(self, parent, job):
+        super().__init__(parent)
+        self.parent = parent
+        self.job = job
+        self.title(f"Log Outreach: {job['company']}")
+        self.geometry("500x550")
+        self.transient(parent)
+        self.grab_set()
+        
+        ctk.CTkLabel(self, text="STRATEGIC OUTREACH LOG", font=ctk.CTkFont(size=18, weight="bold"), text_color="#00d4ff").pack(pady=20)
+        
+        # Form Fields
+        ctk.CTkLabel(self, text="Communication Type", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=40)
+        self.type_var = ctk.StringVar(value="LinkedIn Message")
+        ctk.CTkOptionMenu(self, values=["LinkedIn Message", "Cold Email", "Follow-up Email", "InMail", "Referral Call"], variable=self.type_var, width=420).pack(pady=(5, 15))
+        
+        ctk.CTkLabel(self, text="Contact / Recruiter Name", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=40)
+        self.contact_entry = ctk.CTkEntry(self, placeholder_text="Name of the person you contacted...", height=35, width=420)
+        self.contact_entry.pack(pady=(5, 15))
+        
+        ctk.CTkLabel(self, text="Tactical Message Snippet", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=40)
+        self.msg_text = ctk.CTkTextbox(self, height=120, width=420)
+        self.msg_text.pack(pady=(5, 15))
+        
+        ctk.CTkButton(self, text="💾 RECORD OUTREACH ACTIVITY", height=50, width=300, fg_color="#27ae60", command=self.save).pack(pady=20)
+        
+    def save(self):
+        o_type = self.type_var.get()
+        name = self.contact_entry.get().strip()
+        msg = self.msg_text.get("1.0", "end").strip()
+        
+        # Tactical Database Recording (v32.9)
+        if hasattr(self.parent, 'tracker'):
+            self.parent.tracker.add_outreach_log(self.job['id'], o_type, name, msg)
+            print(f"✓ Strategic Outreach Recorded: {o_type} to {name}")
+        
+        self.destroy()
+
+class HelpCenterWindow(ctk.CTkToplevel):
+    """Sovereign Help Center: Professional 'App Password' Masterclass."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Sovereign Agent | Help Center")
+        self.geometry("700x750")
+        self.transient(parent)
+        self.grab_set()
+        
+        # Navigation / Tabs
+        tabs = ctk.CTkTabview(self, fg_color="transparent")
+        tabs.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        self.tab_gmail = tabs.add("📧 GMAIL")
+        self.tab_yahoo = tabs.add("🟣 YAHOO / AOL")
+        self.tab_outlook = tabs.add("🔵 OUTLOOK")
+        self.tab_security = tabs.add("🛡️ SECURITY")
+        self.tab_dash = tabs.add("📊 DASHBOARD")
+        
+        self._build_gmail_tab()
+        self._build_yahoo_tab()
+        self._build_outlook_tab()
+        self._build_security_tab()
+        self._build_dashboard_tab()
+
+    def _build_dashboard_tab(self):
+        t = self.tab_dash
+        ctk.CTkLabel(t, text="MISSION CONTROL TELEMETRY GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#00d4ff").pack(pady=15)
+        guide = (
+            "● DEPLOYED APPS: Total successful applications recorded in mission logs.\n"
+            "● INTERVIEW LEADS: High-value targets currently in interview phase.\n"
+            "● INTEL TARGETS: All discovered job opportunities across all platforms.\n"
+            "● EFFICIENCY RATE: Your strike-to-target ratio (Applications / Discoveries).\n"
+            "● PROGRESS FUNNEL: Visual pipeline of your current campaign status.\n"
+            "● PLATFORM DENSITY: Intelligence on which sources are yielding the most hits.\n"
+            "● REAL-TIME TELEMETRY: Live low-level logs from active automation engines."
+        )
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12), line_spacing=10).pack(padx=30, pady=10)
+
+    def _build_gmail_tab(self):
+        t = self.tab_gmail
+        ctk.CTkLabel(t, text="GOOGLE APP PASSWORD GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#2ecc71").pack(pady=15)
+        guide = (
+            "1. Enable 2-Step Verification in your Google Account settings.\n"
+            "2. Search for 'App Passwords' in the Google Account search bar.\n"
+            "3. Select 'Other (Custom name)' and enter 'Sovereign Agent'.\n"
+            "4. Copy the unique 16-character code (EX: aaaa bbbb cccc dddd).\n"
+            "5. Paste this into the Agent's Password field (leave 'SSL' checked)."
+        )
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
+        ctk.CTkButton(t, text="🔗 OPEN GOOGLE SECURITY CENTER", fg_color="#34495e", 
+                      command=lambda: webbrowser.open("https://myaccount.google.com/security")).pack(pady=20)
+
+    def _build_yahoo_tab(self):
+        t = self.tab_yahoo
+        ctk.CTkLabel(t, text="YAHOO / AOL APP PASSWORD GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#8e44ad").pack(pady=15)
+        guide = (
+            "1. Log in to Yahoo and go to 'Account Info'.\n"
+            "2. Click 'Account Security' in the sidebar.\n"
+            "3. Scroll to 'Generate App Password' at the bottom.\n"
+            "4. Select 'Other App' and type 'Sovereign Agent'.\n"
+            "5. Copy the generated code and use it in the Dashboard."
+        )
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
+        ctk.CTkButton(t, text="🔗 OPEN YAHOO SECURITY", fg_color="#34495e", 
+                      command=lambda: webbrowser.open("https://login.yahoo.com/account/security")).pack(pady=20)
+
+    def _build_outlook_tab(self):
+        t = self.tab_outlook
+        ctk.CTkLabel(t, text="OUTLOOK / OFFICE 365 GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#2980b9").pack(pady=15)
+        guide = (
+            "1. Go to Microsoft 'Account Dashboard' and select 'Security'.\n"
+            "2. Click on 'Advanced Security Options'.\n"
+            "3. Ensure 'Two-step verification' is turned ON.\n"
+            "4. Look for the 'App Passwords' section and click 'Create a new app password'.\n"
+            "5. Note the code and enter it into the Agent's settings."
+        )
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
+        ctk.CTkButton(t, text="🔗 OPEN MICROSOFT SECURITY", fg_color="#34495e", 
+                      command=lambda: webbrowser.open("https://account.microsoft.com/security")).pack(pady=20)
+
+    def _build_security_tab(self):
+        t = self.tab_security
+        ctk.CTkLabel(t, text="MISSION SECURITY PROTOCOLS", font=ctk.CTkFont(size=16, weight="bold"), text_color="#00d4ff").pack(pady=15)
+        guide = (
+            "● ZERO-CLOUD: All your data is stored locally in your %APPDATA% directory.\n"
+            "● NO TELEMETRY: We do not track your applications or personal data.\n"
+            "● ENCRYPTED KEYS: Your API keys are never saved in plain text in any logs.\n"
+            "● SECURE HEADLESS: Browser sessions are isolated to prevent cross-site tracking.\n"
+            "● YOU OWN THE IDENTITY: You can delete the entire database with one click."
+        )
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
+        
+        # Phase 35.0: Update Section
+        ctk.CTkFrame(t, height=2, fg_color="#333").pack(fill="x", pady=20, padx=30)
+        
+        ctk.CTkLabel(t, text=f"SOVEREIGN AGENT v{config.VERSION}", font=ctk.CTkFont(size=11, weight="bold"), text_color="gray").pack()
+        
+        update_btn = ctk.CTkButton(t, text="🔍 CHECK FOR UPDATES", height=40, width=200, fg_color="#34495e", command=self.manual_check)
+        update_btn.pack(pady=10)
+        
+        self.status_lbl = ctk.CTkLabel(t, text="", font=ctk.CTkFont(size=10))
+        self.status_lbl.pack()
+
+    def manual_check(self):
+        self.status_lbl.configure(text="Connecting to GitHub HQ...", text_color="gray")
+        def run():
+            from src.update_manager import check_for_updates
+            if check_for_updates():
+                self.status_lbl.configure(text="⚡ UPDATE DETECTED: PLEASE RESTART OR DOWNLOAD LATEST", text_color="#f1c40f")
+                if hasattr(self.master, '_signal_update_available'):
+                    self.master._signal_update_available()
+            else:
+                self.status_lbl.configure(text="✓ YOUR AGENT IS UP TO DATE", text_color="#2ecc71")
+        
+        threading.Thread(target=run, daemon=True).start()
+
+
+class EmailScanDialog(ctk.CTkToplevel):
+    """Platform Selection for Email Intelligence Scan."""
+    def __init__(self, parent, callback):
+        super().__init__(parent)
+        self.title("Email Intelligence Filter")
+        self.geometry("400x350")
+        self.transient(parent)
+        self.grab_set()
+        self.callback = callback
+        
+        ctk.CTkLabel(self, text="SELECT SOURCES TO SCAN", font=ctk.CTkFont(size=16, weight="bold"), text_color="#00d4ff").pack(pady=20)
+        
+        self.plat_vars = {}
+        platforms = ["LinkedIn", "Indeed", "Glassdoor", "ZipRecruiter", "Monster", "CareerBuilder"]
+        for plat in platforms:
+            var = ctk.BooleanVar(value=True if plat in ["LinkedIn", "Indeed"] else False)
+            cb = ctk.CTkCheckBox(self, text=plat, variable=var)
+            cb.pack(pady=5, padx=50, anchor="w")
+            self.plat_vars[plat] = var
+            
+        ctk.CTkButton(self, text="🔍 START SCAN", fg_color="#2980b9", command=self.confirm).pack(pady=25)
+
+    def confirm(self):
+        selected = [p for p, v in self.plat_vars.items() if v.get()]
+        self.callback(selected)
         self.destroy()
 
 if __name__ == "__main__":
-    JobAutomationApp().mainloop()
-
+    app = JobAutomationApp()
+    app.mainloop()

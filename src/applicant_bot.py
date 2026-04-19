@@ -377,6 +377,21 @@ class ApplicantBot:
                 if attempt == max_retries - 1: raise
                 _short_delay()
 
+    def _scroll_modal_container(self):
+        """Phase 27.5: Scavenge for lazy-loaded buttons inside the active modal."""
+        try:
+            self.driver.execute_script("""
+                let modal = document.querySelector('.artdeco-modal__content, .jobs-easy-apply-modal, #indeed-modal-content');
+                if (modal) {
+                    modal.scrollTop = modal.scrollHeight;
+                    return true;
+                }
+                window.scrollBy(0, 300); // Fallback to global scroll
+                return false;
+            """)
+            _short_delay()
+        except: pass
+
     def _find_nav_button(self):
         """
         Comprehensive button scanner that checks root and all iframes for
@@ -386,20 +401,29 @@ class ApplicantBot:
             "//button[contains(@aria-label, 'Continue')]",
             "//button[contains(@aria-label, 'Review')]",
             "//button[contains(@aria-label, 'Submit')]",
+            "//button[contains(@aria-label, 'next step')]",
+            # Modern ID/Data Attributes
+            "//button[@data-testid='indeed-apply-continue-button']",
+            "//button[contains(@class, 'jobs-apply-button--top-card')]",
+            "//button[contains(@class, 'artdeco-button--primary')]",
+            "//button[contains(@class, 'artdeco-button--3')]",
+            "//button[contains(@class, 'artdeco-button--secondary')]",
             # Priority selectors for modal interior
             "//button[contains(., 'Next')]",
             "//button[contains(., 'Review')]",
             "//button[contains(., 'Submit')]",
             "//button[contains(., 'Done')]",
             "//button[contains(., 'Continue')]",
+            "//button[contains(., 'Save')]",
             "//*[@data-control-name='continue_unify']",
             "//*[@data-control-name='submit_unify']",
-            "//*[contains(text(), 'Next')]/ancestor::button",
-            "//*[contains(text(), 'Review')]/ancestor::button",
-            "//*[contains(text(), 'Submit')]/ancestor::button",
+            "//*[contains(translate(text(), 'NEXT', 'next'), 'next')]/ancestor::button",
+            "//*[contains(translate(text(), 'REVIEW', 'review'), 'review')]/ancestor::button",
+            "//*[contains(translate(text(), 'SUBMIT', 'submit'), 'submit')]/ancestor::button",
             "//span[contains(text(), 'Next')]/ancestor::button",
             "//span[contains(text(), 'Review')]/ancestor::button",
             "//span[contains(text(), 'Submit')]/ancestor::button",
+            "//div[contains(@class, 'artdeco-modal')]//button[contains(., 'Next')]",
         ]
 
         # 0. Try Shadow DOM buttons (Phase 12: common in newer Artdeco updates)
@@ -671,7 +695,7 @@ class IndeedBot(ApplicantBot):
             _safe_print(f"  ✗ Indeed login failed: {e}")
             return False
 
-    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "") -> dict:
+    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "", guided: bool = False) -> dict:
         """
         Apply to a job on Indeed. Handles both Easy Apply and external links.
         """
@@ -689,6 +713,16 @@ class IndeedBot(ApplicantBot):
             # 1. Humanize & Cleanup
             self._dismiss_popups()
             self._human_scroll()
+            
+            # Phase 31.0: Indeed Iframe Switching Logic
+            try:
+                iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+                for iframe in iframes:
+                    if "indeed-apply-iframe" in (iframe.get_attribute("id") or "") or "indeed-apply-iframe" in (iframe.get_attribute("name") or ""):
+                        self._log("Indeed Apply iframe detected. Switching context...")
+                        self.driver.switch_to.frame(iframe)
+                        break
+            except: pass
 
             # 2. Check if already applied
             body_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
@@ -751,54 +785,64 @@ class IndeedBot(ApplicantBot):
             _human_delay(2, 4)
 
             # Handle the application wizard using form_filler
-            max_steps = 12
+            max_steps = 15
             last_page_state = ""
             for step in range(max_steps):
                 self._log(f"Handling Indeed step {step+1}...")
-                _human_delay(1.5, 3.5) # Randomized thinking time
+                _human_delay(1.5, 3.5) 
                 
                 # Check for stall
                 current_state = self.driver.current_url + self.driver.page_source[:1000]
                 if current_state == last_page_state and step > 0:
                     self._log("Stall detected: Page content hasn't changed. Attempting recovery...")
-                    self._human_scroll()
+                    self._scroll_modal_container() # Phase 27.5 Scavenge
                     _human_delay(1, 2)
                 last_page_state = current_state
 
                 # Jittery scroll before filling
-                if random.random() < 0.3: self._human_scroll()
+                if random.random() < 0.3: self._scroll_modal_container()
+                
                 auto_fill_page(
                     self.driver, 
                     self.profile.get_form_data(), 
                     resume_path, 
-                    cover_letter_path,
+                    cover_letter_path, 
                     resume_text
                 )
 
-                # Try to click Continue/Next/Submit
-                clicked = False
-                nav_selectors = [
-                    "//button[contains(text(), 'Continue')]",
-                    "//button[contains(text(), 'Next')]",
-                    "//button[contains(text(), 'Review')]",
-                    "//button[contains(text(), 'Submit')]",
-                ]
-                for xpath in nav_selectors:
-                    try:
-                        btn = self.driver.find_element(By.XPATH, xpath)
-                        btn_text = btn.text.lower()
-                        self._safe_click(btn)
-                        clicked = True
+                # Phase 27.5: Use Unified Navigation Engine
+                nav_btn = self._find_nav_button()
+                if not nav_btn:
+                    self._log("No navigation button found. Scavenging modal...")
+                    self._scroll_modal_container()
+                    nav_btn = self._find_nav_button()
+
+                if nav_btn:
+                    btn_text = (nav_btn.get_attribute("aria-label") or nav_btn.text or "").lower()
+                    self._safe_click(nav_btn)
+                    _human_delay(2, 3)
+                    
+                    if any(kw in btn_text for kw in ["submit", "finish", "done"]):
+                        if guided:
+                            self._log("GUIDED MODE: Application ready for submission. Please review in browser.")
+                            _safe_print("\n  [bold yellow]✋ GUIDED STOP: Please review the application in the browser.[/]")
+                            _safe_print("  [yellow]Click 'Submit' manually OR press ENTER here to let the bot click it...[/]")
+                            input("  > Press Enter to continue (or manual click in browser)...")
+                            
+                        self._safe_click(nav_btn)
                         _human_delay(2, 3)
                         
-                        if "submit" in btn_text:
+                        if any(kw in btn_text for kw in ["submit", "finish", "done"]):
                             result["success"] = True
                             result["message"] = "Application submitted successfully"
-                            _safe_print("  ✓ Application submitted!")
+                            _safe_print("  ✓ Indeed Application submitted!")
                             return result
-                        break
-                    except NoSuchElementException:
-                        continue
+                else:
+                    self._log("Indeed navigation stalled: No 'Next' or 'Submit' button detected.")
+                    if "application sent" in self.driver.page_source.lower():
+                        result["success"] = True
+                        return result
+                    break
 
                 if not clicked:
                     # Check if finished
@@ -835,7 +879,52 @@ class IndeedBot(ApplicantBot):
         
         _safe_print(f"  🔍 Searching Indeed: [cyan]{keywords}[/] in [cyan]{location}[/]")
         self.driver.get(search_url)
-        _human_delay(5, 8)
+        _human_delay(3, 5)
+        
+        # Phase 35.0: Robust Search Trigger
+        # Indeed sometimes populates but doesn't trigger search, or redirects to homepage
+        try:
+            # Check if we are actually on a results page or need to click search
+            if not self._element_exists(By.CSS_SELECTOR, ".job_seen_beacon, .result"):
+                self._log("Results not detected. Attempting to trigger search button...")
+                
+                # Check for "Find jobs" button
+                search_btns = [
+                    (By.CSS_SELECTOR, "button.yosegi-InlineWhatWhere-primaryButton"),
+                    (By.CSS_SELECTOR, "button[type='submit']"),
+                    (By.XPATH, "//button[contains(., 'Find jobs')]"),
+                    (By.XPATH, "//button[contains(., 'Search')]")
+                ]
+                
+                for by, sel in search_btns:
+                    try:
+                        btn = self.driver.find_element(by, sel)
+                        if btn.is_displayed():
+                            self._log(f"Triggering search button: {sel}")
+                            self._safe_click(btn)
+                            _human_delay(4, 6)
+                            break
+                    except: continue
+        except Exception as e:
+            self._log(f"Search trigger warning: {e}")
+
+        # Final check: if still no results, try typing manually (Nuclear Option)
+        if not self._element_exists(By.CSS_SELECTOR, ".job_seen_beacon, .result"):
+            self._log("Total search stall. Attempting manual input injection...")
+            try:
+                self.driver.get(f"https://{base_domain}/")
+                _human_delay(2, 4)
+                self._wait_and_type(By.NAME, "q", keywords)
+                _human_delay(0.5, 1)
+                # Clear 'where' if needed
+                loc_input = self.driver.find_element(By.NAME, "l")
+                loc_input.send_keys(Keys.CONTROL + "a")
+                loc_input.send_keys(Keys.DELETE)
+                self._wait_and_type(By.NAME, "l", location)
+                _human_delay(0.5, 1)
+                loc_input.send_keys(Keys.ENTER)
+                _human_delay(5, 8)
+            except: pass
 
         jobs = []
         try:
@@ -878,7 +967,7 @@ class IndeedBot(ApplicantBot):
                         jobs.append({
                             "job_title": title,
                             "company": company,
-                            "apply_url": url.split("?")[0],
+                            "apply_url": url,
                             "source": "Indeed"
                         })
                 except Exception: continue
@@ -1009,7 +1098,7 @@ Rules:
         except Exception:
             return ""
 
-    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "") -> dict:
+    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "", guided: bool = False) -> dict:
         """
         Apply to a job on LinkedIn. Handles Easy Apply and external links.
         """
@@ -1063,15 +1152,22 @@ Rules:
                     result["message"] = "Job closed"
                     return result
 
-            # 3. Check if already applied
+            # 3. Check if already applied (Refined Phase 32.4)
             try:
+                # Look for explicit Artdeco indicators first
+                top_card_indicators = self.driver.find_elements(By.CSS_SELECTOR, ".artdeco-inline-feedback--success, .jobs-s-apply--success")
+                if top_card_indicators:
+                    self._log("Already applied (detected via Artdeco success indicator).")
+                    return {"success": True, "message": "Already applied"}
+                
                 top_card = self.driver.find_element(By.CSS_SELECTOR, ".jobs-unified-top-card, .job-details").text.lower()
                 applied_indicators = ["applied", "application sent", "view application", "applied on"]
+                # Only trust "applied" if it's not part of "applied for" or other phrases
                 if any(phrase in top_card for phrase in applied_indicators):
-                    self._log("Already applied to this job.")
-                    result["success"] = True
-                    result["message"] = "Already applied"
-                    return result
+                    # Final check: is there a prominent "Applied" badge?
+                    if "applied" in top_card[:500]:
+                       self._log("Already applied to this job.")
+                       return {"success": True, "message": "Already applied"}
             except: pass
 
             # 4. Look for Easy Apply button
@@ -1230,6 +1326,22 @@ Rules:
                 # Fill on every step because LinkedIn often leaves 'Next' enabled even with missing fields
                 self._log("Proactively filling fields for this step...")
                 from src.form_filler import auto_fill_page
+                
+                # Phase 28: Force Resume Step Logic
+                # If the modal contains "resume", we want to ensure we "Upload" the new one
+                modal_text = self.driver.find_element(By.CSS_SELECTOR, ".jobs-easy-apply-modal").text.lower()
+                if "resume" in modal_text and resume_path:
+                    try:
+                        # Check if "Upload resume" button exists and click it to reveal the input
+                        upload_btns = self.driver.find_elements(By.XPATH, "//button[contains(., 'Upload resume')]")
+                        for btn in upload_btns:
+                            if btn.is_displayed():
+                                self._log("Forcing tailored resume upload...")
+                                self.driver.execute_script("arguments[0].click();", btn)
+                                _short_delay()
+                                break
+                    except: pass
+
                 auto_fill_page(self.driver, self.profile.get_form_data(), resume_path, cover_letter_path, resume_text)
                 _human_delay(1, 2)
 
@@ -1273,6 +1385,11 @@ Rules:
                             if click_attempt == 2: self._log(f"Failed all click strategies: {e}")
 
                 _human_delay(2, 4)
+                
+                # Phase 32.4 Stability: Ensure we're in the right context
+                try:
+                    self.driver.switch_to.default_content()
+                except: pass
 
                 # 6.5 Post-Click Validation
                 try:
@@ -1283,9 +1400,23 @@ Rules:
                         auto_fill_page(self.driver, self.profile.get_form_data(), resume_path, cover_letter_path, resume_text)
                 except: pass
 
-                if "submit" in btn_text or "post-apply" in btn_text:
-                    self._log("Submit clicked. Waiting for success...")
+                if "submit" in btn_text or "post-apply" in btn_text or "apply" in btn_text:
+                    # Final check if modal closed or shows success
+                    _human_delay(3, 5)
+                    success_phrases = ["application was sent", "successfully applied", "thank you for applying"]
+                    page_src = self.driver.page_source.lower()
+                    if any(p in page_src for p in success_phrases):
+                        self._log("Application sent successfully!")
+                        return {"success": True, "message": "Applied"}
+                    
+                    if guided:
+                        self._log("GUIDED MODE: LinkedIn Application ready. Please review.")
+                        _safe_print("\n  [bold yellow]✋ GUIDED STOP: Please review the application in the browser.[/]")
+                        input("  > Press Enter to continue and submit...")
+                        
+                    self._log("Submit clicked. Waiting for final confirmation...")
                     _human_delay(2, 5)
+                    # Even if success text not found, if modal is gone, it's likely a win
                     result["success"] = True
                     result["message"] = "Applied"
                     return result
@@ -1310,6 +1441,15 @@ Rules:
         _safe_print(f"  🔍 Searching LinkedIn: [cyan]{keywords}[/] in [cyan]{location}[/]")
         self.driver.get(search_url)
         _human_delay(5, 8)
+        
+        # Phase 35.1: Global Search Trigger (LinkedIn)
+        try:
+            if not self._element_exists(By.CSS_SELECTOR, ".job-card-container, .jobs-search-results-list__list-item"):
+                self._log("LinkedIn results stalled. Clicking search trigger...")
+                trigger = self.driver.find_element(By.CSS_SELECTOR, "button.jobs-search-box__submit-button, button[type='submit']")
+                self._safe_click(trigger)
+                _human_delay(4, 6)
+        except: pass
         
         jobs = []
         try:
@@ -1380,15 +1520,27 @@ Rules:
         """Helper to fill external forms reached via LinkedIn."""
         self._log("Waiting for external redirect...")
         
-        # Phase 27.3: Wait for URL departure from LinkedIn
+        # Phase 28: Improved Tab Detection Logic
         start_time = time.time()
-        while time.time() - start_time < 12:
-            current_url = self.driver.current_url.lower()
-            if "linkedin.com" not in current_url or "/jobs/view/" not in current_url:
-                if len(self.driver.window_handles) > 1:
-                    self.driver.switch_to.window(self.driver.window_handles[-1])
+        found_redirect = False
+        while time.time() - start_time < 15:
+            # Check for new tabs
+            if len(self.driver.window_handles) > 1:
+                self._log("Switching to new tab...")
+                self.driver.switch_to.window(self.driver.window_handles[-1])
+                found_redirect = True
                 break
+                
+            # Check for same-tab URL changes
+            current_url = self.driver.current_url.lower()
+            if "linkedin.com" not in current_url:
+                found_redirect = True
+                break
+                
             time.sleep(1)
+            
+        if not found_redirect:
+             self._log("Warning: No clear redirect detected. Attempting to scan current page anyway.")
             
         # Final safety check
         if "linkedin.com" in self.driver.current_url.lower() and "/jobs/view/" in self.driver.current_url:
@@ -1397,13 +1549,13 @@ Rules:
         # Use the powerful ExternalBot engine to handle the company site
         ext_bot = ExternalBot(profile_name="external_redir", profile=self.profile)
         ext_bot.driver = self.driver # Share the driver
-        return ext_bot.apply(self.driver.current_url, resume_path, cover_letter_path, resume_text)
+        return ext_bot.apply(self.driver.current_url, resume_path, cover_letter_path, resume_text, guided=guided)
 
 
 class ExternalBot(ApplicantBot):
     """Bot for handling applications on any external website."""
 
-    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "") -> dict:
+    def apply(self, apply_url: str, resume_path: str = "", cover_letter_path: str = "", resume_text: str = "", guided: bool = False) -> dict:
         """Navigate to any URL and attempt to fill the application form."""
         self.start()
         _safe_print(f"  🌐 Navigating to {apply_url[:50]}...")
@@ -1528,10 +1680,207 @@ class ExternalBot(ApplicantBot):
 
 
 
-class FallbackBot(ExternalBot):
-    """Backwards compatibility."""
-    pass
+# ── Specialized Platform Bots ────────────────────────────────
+class ZipRecruiterBot(ExternalBot):
+    def __init__(self, profile: Optional[ApplicantProfile] = None):
+        super().__init__(profile_name="ziprecruiter", profile=profile)
 
+    def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
+        self.start()
+        search_url = f"https://www.ziprecruiter.com/candidate/search?search={keywords}&location={location}"
+        self.driver.get(search_url)
+        _human_delay(4, 6)
+        
+        # Phase 35.1: Global Search Trigger (ZipRecruiter)
+        try:
+            if not self._element_exists(By.CSS_SELECTOR, ".job_result, article.job_result"):
+                self._log("ZipRecruiter results stalled. Clicking search trigger...")
+                trigger = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit'], .search_button")
+                self._safe_click(trigger)
+                _human_delay(4, 6)
+        except: pass
+        jobs = []
+        try:
+            cards = self.driver.find_elements(By.CSS_SELECTOR, ".job_content, .job_result, article.job_result")
+            for card in cards[:limit]:
+                try:
+                    title_el = card.find_element(By.CSS_SELECTOR, ".job_title, h2")
+                    title = title_el.text.strip()
+                    url = card.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    company = card.find_element(By.CSS_SELECTOR, ".company_name, .name").text.strip()
+                    if url:
+                        jobs.append({"job_title": title, "company": company, "apply_url": url, "source": "ZipRecruiter"})
+                except: continue
+        except: pass
+        return jobs
+
+class DiceBot(ExternalBot):
+    def __init__(self, profile: Optional[ApplicantProfile] = None):
+        super().__init__(profile_name="dice", profile=profile)
+
+    def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
+        self.start()
+        search_url = f"https://www.dice.com/jobs?q={keywords}&l={location}"
+        self.driver.get(search_url)
+        _human_delay(4, 6)
+        
+        # Phase 35.1: Global Search Trigger (Dice)
+        try:
+            if not self._element_exists(By.CSS_SELECTOR, "d-job-card"):
+                self._log("Dice results stalled. Clicking search trigger...")
+                trigger = self.driver.find_element(By.ID, "submitSearch-button")
+                self._safe_click(trigger)
+                _human_delay(4, 6)
+        except: pass
+        jobs = []
+        try:
+            cards = self.driver.find_elements(By.CSS_SELECTOR, "d-job-card, .search-results-list .card, .current-job-card")
+            for card in cards[:limit]:
+                try:
+                    title_el = card.find_element(By.CSS_SELECTOR, "a.card-title-link, h3 a, [data-cy='card-title-link']")
+                    title = title_el.text.strip()
+                    url = title_el.get_attribute("href")
+                    # Try to find company via link or text span
+                    try:
+                        company = card.find_element(By.CSS_SELECTOR, "a.card-company-link, .company-name, [data-cy='card-company-link']").text.strip()
+                    except:
+                        company = "Unknown"
+                    if url:
+                        jobs.append({"job_title": title, "company": company, "apply_url": url, "source": "Dice"})
+                except: continue
+        except: pass
+        return jobs
+
+class WellfoundBot(ExternalBot):
+    def __init__(self, profile: Optional[ApplicantProfile] = None):
+        super().__init__(profile_name="wellfound", profile=profile)
+
+    def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
+        self.start()
+        search_url = f"https://wellfound.com/jobs?q={keywords}"
+        self.driver.get(search_url)
+        _human_delay(6, 10)
+        
+        # Phase 35.1: Global Search Trigger (Wellfound)
+        try:
+            if not self._element_exists(By.CSS_SELECTOR, "[data-test='JobListingCard']"):
+                self._log("Wellfound results stalled. Pressing Enter to trigger...")
+                # Wellfound results often trigger on Enter in the input
+                act = self.driver.find_element(By.TAG_NAME, "body")
+                act.send_keys(Keys.ENTER)
+                _human_delay(5, 8)
+        except: pass
+        jobs = []
+        try:
+            # Phase 33.0: Deep Card Analysis for 2026/2026 dynamic UI
+            selectors = [
+                "[data-test='JobListingCard']",
+                ".styles_result__",
+                ".finding-jobs_jobCard__",
+                "//div[contains(@class, 'job-card')]",
+                "//div[contains(@aria-label, 'Job listing')]"
+            ]
+            
+            cards = []
+            for sel in selectors:
+                if sel.startswith("//"):
+                    cards = self.driver.find_elements(By.XPATH, sel)
+                else:
+                    cards = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                if cards: break
+
+            for card in cards[:limit]:
+                try:
+                    # Extraction cluster with robust fallbacks
+                    title_sel = ["[data-test='JobTitle']", "h3", ".styles_jobTitle__", "h2", "a.title"]
+                    company_sel = ["[data-test='CompanyLink']", ".styles_companyName__", "a.company", "div.name"]
+                    
+                    title = "Unknown Role"
+                    for ts in title_sel:
+                        try:
+                            el = card.find_element(By.CSS_SELECTOR, ts)
+                            if el.text.strip():
+                                title = el.text.strip()
+                                break
+                        except: continue
+                        
+                    company = "Unknown Company"
+                    for cs in company_sel:
+                        try:
+                            el = card.find_element(By.CSS_SELECTOR, cs)
+                            if el.text.strip():
+                                company = el.text.strip()
+                                break
+                        except: continue
+                        
+                    try:
+                        url = card.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    except: url = None
+
+                    if url and "/jobs/" in url:
+                        jobs.append({"job_title": title, "company": company, "apply_url": url.split("?")[0], "source": "Wellfound"})
+                except: continue
+        except: pass
+        return jobs
+
+class IPRecruiterBot(ExternalBot):
+    """Specialized Bot for iprecruiter.com and similar niche niche niches."""
+    def __init__(self, profile: Optional[ApplicantProfile] = None):
+        super().__init__(profile_name="iprecruiter", profile=profile)
+
+    def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
+        self.start()
+        # IPRecruiter often uses Google Jobs or a standard WP listing
+        search_url = f"https://iprecruiter.com/?s={keywords}"
+        self.driver.get(search_url)
+        _human_delay(4, 6)
+        jobs = []
+        try:
+            # Common patterns for iprecruiter / niche boards
+            cards = self.driver.find_elements(By.CSS_SELECTOR, "article, .job-listing, .post, .entry")
+            for card in cards[:limit]:
+                try:
+                    title_el = card.find_element(By.CSS_SELECTOR, "h2, h3, .title, a")
+                    title = title_el.text.strip()
+                    url = title_el.get_attribute("href") or card.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    if url and title:
+                        jobs.append({"job_title": title, "company": "IP Recruiter", "apply_url": url, "source": "IPRecruiter"})
+                except: continue
+        except: pass
+        return jobs
+
+class BuiltInBot(ExternalBot):
+    def __init__(self, profile: Optional[ApplicantProfile] = None):
+        super().__init__(profile_name="builtin", profile=profile)
+
+    def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
+        self.start()
+        # Custom search redirect based on common BuiltIn patterns
+        search_url = f"https://builtin.com/jobs?search={keywords}"
+        self.driver.get(search_url)
+        _human_delay(5, 8)
+        
+        # Phase 35.1: Global Search Trigger (BuiltIn)
+        try:
+            if not self._element_exists(By.CSS_SELECTOR, ".card-item, [data-id='job-card']"):
+                self._log("BuiltIn results stalled. Clicking search trigger...")
+                trigger = self.driver.find_element(By.CSS_SELECTOR, "button.search-btn, button[type='submit']")
+                self._safe_click(trigger)
+                _human_delay(4, 6)
+        except: pass
+        jobs = []
+        try:
+            cards = self.driver.find_elements(By.CSS_SELECTOR, ".card-item, [data-id='job-card']")
+            for card in cards[:limit]:
+                try:
+                    title = card.find_element(By.CSS_SELECTOR, ".job-title, h2").text.strip()
+                    company = card.find_element(By.CSS_SELECTOR, ".company-name, .company-title").text.strip()
+                    url = card.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    if url:
+                        jobs.append({"job_title": title, "company": company, "apply_url": url.split("?")[0], "source": "BuiltIn"})
+                except: continue
+        except: pass
+        return jobs
 
 # ── Singleton Bot Manager ────────────────────────────────────
 # One browser per platform, reused across all jobs in a session.
@@ -1550,18 +1899,37 @@ def _get_platform(url: str) -> str:
             return "indeed"
         if domain == "linkedin.com" or domain.endswith(".linkedin.com"):
             return "linkedin"
+        if domain == "ziprecruiter.com" or domain.endswith(".ziprecruiter.com"):
+            return "ziprecruiter"
+        if domain == "dice.com" or domain.endswith(".dice.com"):
+            return "dice"
+        if domain == "wellfound.com" or domain.endswith(".wellfound.com") or domain == "angel.co":
+            return "wellfound"
+        if domain == "builtin.com" or domain.endswith(".builtin.com"):
+            return "builtin"
+        if "iprecruiter.com" in domain:
+            return "iprecruiter"
     except Exception:
         pass
         
     return "other"
 
 
-def get_bot(url: str) -> ApplicantBot:
+def get_bot(url: str, platform: Optional[str] = None) -> ApplicantBot:
     """
     Get or create a bot for the given URL's platform.
     Reuses existing browser sessions — never creates duplicates.
+    
+    Args:
+        url: The job URL
+        platform: Optional platform override (e.g. 'linkedin', 'indeed').
+                  If provided, bypasses domain-based detection.
     """
-    platform = _get_platform(url)
+    if not platform:
+        platform = _get_platform(url)
+    
+    # Normalize platform for consistent key lookup
+    platform = platform.lower().replace(" ", "").replace("-", "")
 
     if platform not in _active_bots:
         profile = ApplicantProfile()
@@ -1569,8 +1937,18 @@ def get_bot(url: str) -> ApplicantBot:
             _active_bots[platform] = IndeedBot(profile=profile)
         elif platform == "linkedin":
             _active_bots[platform] = LinkedInBot(profile=profile)
+        elif platform in ["ziprecruiter", "zip"]:
+            _active_bots[platform] = ZipRecruiterBot(profile=profile)
+        elif platform == "dice":
+            _active_bots[platform] = DiceBot(profile=profile)
+        elif platform == "wellfound":
+            _active_bots[platform] = WellfoundBot(profile=profile)
+        elif platform == "builtin":
+            _active_bots[platform] = BuiltInBot(profile=profile)
+        elif platform == "iprecruiter":
+            _active_bots[platform] = IPRecruiterBot(profile=profile)
         else:
-            _active_bots[platform] = ExternalBot(profile_name="other", profile=profile)
+            _active_bots[platform] = ExternalBot(profile_name=platform, profile=profile)
 
     return _active_bots[platform]
 
@@ -1592,6 +1970,7 @@ def apply_to_job(
     cover_letter_path: str = "",
     resume_text: str = "",
     source: str = "",
+    guided: bool = False,
 ) -> dict:
     """
     Apply to a job using the appropriate bot.
@@ -1602,16 +1981,118 @@ def apply_to_job(
         resume_path: Path to the tailored resume file
         resume_text: Raw resume text (for LLM-based question answering)
         source: Job source platform name
+        guided: If True, pauses for manual review before submission
 
     Returns: {"success": bool, "message": str}
     """
-    bot = get_bot(apply_url)
-    platform = _get_platform(apply_url)
+    bot = get_bot(apply_url, platform=source if source else None)
+    # Re-identify platform for telemetry if not provided
+    platform = source if source else _get_platform(apply_url)
 
     try:
-        return bot.apply(apply_url, resume_path, cover_letter_path, resume_text)
+        return bot.apply(apply_url, resume_path, cover_letter_path, resume_text, guided=guided)
     except Exception as e:
         return {"success": False, "message": f"Bot error: {str(e)}"}
+
+
+def extract_job_details(url: str, platform: Optional[str] = None) -> dict:
+    """
+    Surgical Intelligence: Navigate to a job URL and extract key details 
+    (Title, Company, Description) for document tailoring.
+    """
+    _safe_print(f"  🧠 Extracting mission intelligence from {url[:50]}...")
+    bot = get_bot(url, platform=platform)
+    bot.start()
+    bot.driver.get(url)
+    _human_delay(4, 6)
+    
+    details = {
+        "title": "Unknown Position",
+        "company": "Unknown Company",
+        "location": "Remote",
+        "description": "",
+        "posted_date": "",
+        "hiring_manager": ""
+    }
+    
+    try:
+        # Platform-specific extraction
+        platform = _get_platform(url)
+        content_text = ""
+        
+        if platform == "linkedin":
+            try:
+                details["title"] = bot.driver.find_element(By.CSS_SELECTOR, ".jobs-unified-top-card__job-title, .job-details h1").text.strip()
+                details["company"] = bot.driver.find_element(By.CSS_SELECTOR, ".jobs-unified-top-card__company-name").text.strip()
+                details["description"] = bot.driver.find_element(By.ID, "job-details").text.strip()
+                
+                # Frontier v34.0: Capture Posted Date & Recruiter
+                try: details["posted_date"] = bot.driver.find_element(By.CSS_SELECTOR, ".jobs-unified-top-card__posted-date").text.strip()
+                except: pass
+                try: details["hiring_manager"] = bot.driver.find_element(By.CSS_SELECTOR, ".jobs-poster__name").text.strip()
+                except: pass
+            except: pass
+        elif platform == "indeed":
+            try:
+                details["title"] = bot.driver.find_element(By.CSS_SELECTOR, "h1.jobsearch-JobInfoHeader-title").text.strip()
+                details["company"] = bot.driver.find_element(By.CSS_SELECTOR, "[data-testid='inline-companyname'], .jobsearch-CompanyReview--flex").text.strip()
+                details["description"] = bot.driver.find_element(By.ID, "jobDescriptionText").text.strip()
+                
+                # Frontier v34.0: Indeed Posted Date
+                try: details["posted_date"] = bot.driver.find_element(By.CSS_SELECTOR, ".jobsearch-HiringInsights-entry--withIcon span:last-child").text.strip()
+                except: pass
+            except: pass
+        elif platform == "ziprecruiter":
+            try:
+                details["title"] = bot.driver.find_element(By.CSS_SELECTOR, ".job_title, h1").text.strip()
+                details["company"] = bot.driver.find_element(By.CSS_SELECTOR, ".company_name").text.strip()
+                details["description"] = bot.driver.find_element(By.CSS_SELECTOR, ".job_description, .description").text.strip()
+            except: pass
+        elif platform == "dice":
+            try:
+                details["title"] = bot.driver.find_element(By.ID, "jobTitle").text.strip()
+                details["company"] = bot.driver.find_element(By.ID, "debugId_companyName").text.strip()
+                details["description"] = bot.driver.find_element(By.ID, "jobDescription").text.strip()
+            except: pass
+        elif platform == "wellfound":
+            try:
+                details["title"] = bot.driver.find_element(By.CSS_SELECTOR, "h1").text.strip()
+                details["company"] = bot.driver.find_element(By.CSS_SELECTOR, ".company-name").text.strip()
+                details["description"] = bot.driver.find_element(By.CSS_SELECTOR, ".job-description").text.strip()
+            except: pass
+        elif platform == "builtin":
+            try:
+                details["title"] = bot.driver.find_element(By.CSS_SELECTOR, ".job-title").text.strip()
+                details["company"] = bot.driver.find_element(By.CSS_SELECTOR, ".company-title").text.strip()
+                details["description"] = bot.driver.find_element(By.CSS_SELECTOR, ".job-description").text.strip()
+            except: pass
+            
+        # Fallback: AI Extraction from page body
+        if not details["description"] or len(details["description"]) < 50:
+            content_text = bot.driver.find_element(By.TAG_NAME, "body").text
+            _safe_print("  ⚙ Using AI Synapse to identify job details...")
+            llm = get_llm()
+            prompt = f"""Extract job details from the following page text.
+            URL: {url}
+            
+            Text: {content_text[:6000]}
+            
+            Return ONLY a JSON object:
+            {{"title": "...", "company": "...", "location": "...", "description": "..."}}
+            """
+            try:
+                res = llm.generate(prompt, "You are a professional data extractor.")
+                # Basic JSON cleanup
+                if "```json" in res: res = res.split("```json")[1].split("```")[0]
+                elif "```" in res: res = res.split("```")[1].split("```")[0]
+                ai_data = json.loads(res.strip())
+                details.update(ai_data)
+            except: pass
+            
+    except Exception as e:
+        _safe_print(f"  ⚠ Intelligence extraction failed: {e}")
+        
+    return details
 
 
 def cleanup_bots():
@@ -1650,6 +2131,49 @@ def cleanup_browser_processes():
                 except: pass
     except Exception:
         pass
+
+class ReverseSearchEngine:
+    """
+    Strategic Intelligence: Discovers Hiring Managers and Recruiters 
+    on LinkedIn for high-value networking after a mission target is hit.
+    """
+    def __init__(self, browser_bot):
+        self.bot = browser_bot
+
+    def find_hiring_manager(self, company: str, title: str) -> dict:
+        """Search LinkedIn for the most likely person behind the headcount."""
+        _safe_print(f"  🕵 Initiating Reverse Company Search for {company}...")
+        
+        # Tactical search query
+        query = f"{company} {title} Recruiter OR Hiring Manager"
+        search_url = f"https://www.linkedin.com/search/results/people/?keywords={query.replace(' ', '%20')}"
+        
+        try:
+            self.bot.driver.get(search_url)
+            _human_delay(5, 7)
+            
+            # Extract top 3 candidates
+            people_els = self.bot.driver.find_elements(By.CSS_SELECTOR, ".reusable-search__result-container")
+            results = []
+            
+            for el in people_els[:3]:
+                try:
+                    name_el = el.find_element(By.CSS_SELECTOR, ".app-aware-link")
+                    name = name_el.text.split("\n")[0].strip()
+                    profile_url = name_el.get_attribute("href").split("?")[0]
+                    headline = el.find_element(By.CSS_SELECTOR, ".entity-result__primary-subtitle").text.strip()
+                    
+                    results.append({
+                        "name": name,
+                        "profile_url": profile_url,
+                        "headline": headline
+                    })
+                except: continue
+                
+            return results[0] if results else None
+        except Exception as e:
+            _safe_print(f"  ⚠ Reverse search failed: {e}")
+            return None
 
 
 if __name__ == "__main__":

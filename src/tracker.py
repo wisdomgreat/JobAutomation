@@ -29,6 +29,7 @@ class Application:
     date_applied: str
     notes: str
     match_score: int
+    match_reason: str
 
 
 class Tracker:
@@ -40,6 +41,59 @@ class Tracker:
         self.db_path = db_path or config.DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        # Mission Resilience: Upgrade schema and merge legacy data
+        self._migrate_db()
+        self._check_for_migration()
+
+    def _check_for_migration(self):
+        """Surgical check: Merges legacy tracker.db into the official AppData store."""
+        legacy_db = Path("data/tracker.db")
+        if legacy_db.exists() and legacy_db.resolve() != self.db_path.resolve():
+            print(f"[System] Professional Upgrade: Migrating tactical records from {legacy_db.name}...")
+            try:
+                old_conn = sqlite3.connect(str(legacy_db))
+                try:
+                    old_conn.row_factory = sqlite3.Row
+                    
+                    # Phase 34.5: Ensure the legacy table actually exists before reading
+                    check = old_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='applications'").fetchone()
+                    if not check:
+                        print("[System] No legacy 'applications' table detected. Skipping data migration.")
+                    else:
+                        cursor = old_conn.execute("SELECT * FROM applications")
+                        rows = cursor.fetchall()
+                        
+                        with sqlite3.connect(str(self.db_path)) as new_conn:
+                            for row in rows:
+                                # Use INSERT OR IGNORE to prevent duplicates based on apply_url
+                                new_conn.execute("""
+                                    INSERT OR IGNORE INTO applications 
+                                    (job_title, company, location, description, apply_url, source, status, 
+                                     resume_path, cover_letter_path, date_found, date_applied, notes, match_score)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    row['job_title'], row['company'], row['location'], row['description'],
+                                    row['apply_url'], row['source'], row['status'], row['resume_path'],
+                                    row['cover_letter_path'], row['date_found'], row['date_applied'],
+                                    row['notes'], row['match_score']
+                                ))
+                            new_conn.commit()
+                        print(f"[System] Migration successful. {len(rows)} records synchronized.")
+                finally:
+                    old_conn.close()
+                
+                # Cleanup: Move legacy file to backup to prevent repeated migrations
+                try:
+                    backup_path = legacy_db.with_suffix(".db.migrated")
+                    # Try to rename. If it fails (WinError 32), we ignore it so the app can start.
+                    # The user likely has the file open in an editor or viewer.
+                    legacy_db.rename(backup_path)
+                    print(f"[System] Legacy database archived to {backup_path.name}")
+                except Exception as e:
+                    print(f"[Warning] Could not archive legacy database: {e}")
+                    print(f"[System] Please close any tools using 'data/tracker.db' to complete the upgrade.")
+            except Exception as e:
+                print(f"[Warning] Migration interupted: {e}")
 
     def _ensure_schema(self, func):
         """Decorator to ensure schema exists before running a query."""
@@ -53,6 +107,26 @@ class Tracker:
                 raise
         return wrapper
     
+
+    def _migrate_db(self):
+        """Surgical Schema Upgrade: Adds missing columns to existing databases."""
+        columns_to_add = [
+            ("posted_date", "TEXT DEFAULT ''"),
+            ("hiring_manager", "TEXT DEFAULT ''")
+        ]
+        
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.execute("PRAGMA table_info(applications)")
+            existing_columns = [row[1] for row in cursor.fetchall()]
+            
+            for col_name, col_def in columns_to_add:
+                if col_name not in existing_columns:
+                    try:
+                        print(f"[System] Database Upgrade: Adding missing column '{col_name}'...")
+                        conn.execute(f"ALTER TABLE applications ADD COLUMN {col_name} {col_def}")
+                    except Exception as e:
+                        print(f"[Warning] Migration failed for {col_name}: {e}")
+            conn.commit()
 
     def _init_db(self):
 
@@ -72,7 +146,23 @@ class Tracker:
                     cover_letter_path TEXT DEFAULT '',
                     date_found TEXT DEFAULT '',
                     date_applied TEXT DEFAULT '',
-                    match_score INTEGER DEFAULT 0
+                    notes TEXT DEFAULT '',
+                    match_score INTEGER DEFAULT 0,
+                    match_reason TEXT DEFAULT '',
+                    posted_date TEXT DEFAULT '',
+                    hiring_manager TEXT DEFAULT ''
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS outreach_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    application_id INTEGER NOT NULL,
+                    type TEXT, -- LinkedIn, Email, Call
+                    contact_name TEXT,
+                    message_snippet TEXT,
+                    status TEXT DEFAULT 'sent', -- sent, replied
+                    created_at TEXT,
+                    FOREIGN KEY (application_id) REFERENCES applications (id)
                 )
             """)
             conn.execute("""
@@ -117,6 +207,7 @@ class Tracker:
             date_applied=row[11],
             notes=row[12],
             match_score=row[13],
+            match_reason=row[14] if len(row) > 14 else ""
         )
 
     def add(
@@ -132,6 +223,7 @@ class Tracker:
         cover_letter_path: str = "",
         notes: str = "",
         match_score: int = 0,
+        match_reason: str = "",
     ) -> int:
         """
         Add a new application to the tracker.
@@ -300,12 +392,30 @@ class Tracker:
             row = cursor.fetchone()
             return self._row_to_application(row) if row else None
 
+    def get_pending_reviews(self) -> list[dict]:
+        """Get all jobs that are tracked but not yet applied or skipped."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM applications WHERE status = 'new' ORDER BY match_score DESC"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_stats(self) -> dict:
+        """Alias for get_analytics to ensure GUI/CLI compatibility."""
+        return self.get_analytics()
+
 
     def delete(self, app_id: int):
-        """Delete an application."""
+        """Surgical Termination: Purge an application and its associated tactical logs."""
         with sqlite3.connect(str(self.db_path)) as conn:
+            # Clean up child tables first
+            conn.execute("DELETE FROM failure_logs WHERE application_id = ?", (app_id,))
+            conn.execute("DELETE FROM crm_outreach WHERE application_id = ?", (app_id,))
+            # Terminate master record
             conn.execute("DELETE FROM applications WHERE id = ?", (app_id,))
             conn.commit()
+            print(f"[System] Mission target {app_id} successfully terminated.")
 
             return {"total": total, "by_status": by_status}
 
@@ -336,14 +446,68 @@ class Tracker:
                 "SELECT COUNT(*) FROM applications WHERE date_found >= date('now', '-7 days')"
             ).fetchone()[0]
 
+            # 5. Pipeline Stages for Funnel
+            interviews = conn.execute(
+                "SELECT COUNT(*) FROM applications WHERE status = 'interview'"
+            ).fetchone()[0]
+            offers = conn.execute(
+                "SELECT COUNT(*) FROM applications WHERE status = 'offer'"
+            ).fetchone()[0]
+
             return {
                 "total": total,
                 "applied": applied,
+                "interviews": interviews,
+                "offers": offers,
                 "success_rate": round(success_rate, 1),
                 "platforms": platform_stats,
                 "statuses": status_stats,
                 "recent_7_days": last_7_days,
+                "platform_roi": self._calculate_platform_roi(),
+                "ghost_count": self._count_ghost_jobs()
             }
+
+    def _calculate_platform_roi(self) -> dict:
+        """Calculate success rate per platform."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            query = """
+                SELECT source, 
+                       COUNT(*) as total,
+                       SUM(CASE WHEN status='applied' THEN 1 ELSE 0 END) as applied,
+                       SUM(CASE WHEN status='interview' THEN 1 ELSE 0 END) as interviews
+                FROM applications
+                GROUP BY source
+            """
+            rows = conn.execute(query).fetchall()
+            return {row[0]: {"total": row[1], "applied": row[2], "interviews": row[3]} for row in rows}
+
+    def _count_ghost_jobs(self) -> int:
+        """Count jobs that are likely stale (posted > 60 days ago)."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            # We assume ISO format or similar for posted_date
+            return conn.execute(
+                "SELECT COUNT(*) FROM applications WHERE posted_date < date('now', '-60 days')"
+            ).fetchone()[0]
+
+    def add_outreach_log(self, application_id: int, log_type: str, contact_name: str, message: str):
+        """Record a strategic outreach event."""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("""
+                INSERT INTO outreach_logs (application_id, type, contact_name, message_snippet, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (application_id, log_type, contact_name, message, now))
+            conn.commit()
+
+    def get_outreach_logs(self, application_id: int) -> list[dict]:
+        """Retrieve full networking history for a mission target."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM outreach_logs WHERE application_id = ? ORDER BY created_at DESC",
+                (application_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
 
 
 if __name__ == "__main__":

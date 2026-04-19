@@ -72,7 +72,7 @@ else:
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH)
 
-VERSION = "27.0.0"
+VERSION = "30.2.0"
 GITHUB_REPO = "wisdomgreat/JobAutomation"
 
 def _get(key: str, default: str = "") -> str:
