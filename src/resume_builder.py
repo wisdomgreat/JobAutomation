@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from pathlib import Path
@@ -12,6 +13,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from fpdf import FPDF
+import shutil
 
 import config
 import yaml
@@ -553,30 +555,40 @@ def generate_documents(
     print("💡 Generating interview prep guide...")
     interview_prep = generate_interview_prep(base_text, job_title, company, location, job_description)
 
-    # Phase 24.1: Professional Naming Convention
-    safe_company = _sanitize_filename(company)
-    safe_job = _sanitize_filename(job_title)
-    resume_name = f"Resume - {safe_company} - {safe_job}"
-    cl_name = f"Cover Letter - {safe_company} - {safe_job}"
+    # Phase 32.8: Elite Professional Branding - Standardized Naming
+    first_name = profile_data.get('personal', {}).get('first_name', 'Candidate')
+    last_name = profile_data.get('personal', {}).get('last_name', '')
+    safe_name = _sanitize_filename(f"{first_name} {last_name}").strip()
+    
+    # Clean the job title for the filename
+    clean_job = job_title.split("(")[0].strip() # Remove extra info like (Remote) or (Contract)
+    safe_role = _sanitize_filename(clean_job)
+    if len(safe_role) > 25: safe_role = safe_role[:22] + "..."
+    
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    resume_name = f"{date_str} - {safe_name} - {safe_role}"
+    cl_name = f"Cover Letter - {date_str} - {safe_name} - {safe_role}"
 
-    # Save outputs tracking
+    # Target: Official Mission Output Hub (AppData)
+    final_dir = config.OUTPUT_DIR / date_str / f"{_sanitize_filename(company)}_{_sanitize_filename(job_title)}"
+    final_dir.mkdir(parents=True, exist_ok=True)
+
     paths = {
-        "output_dir": output_dir,
-        "resume_pdf": output_dir / f"{resume_name}.pdf",
-        "resume_docx": output_dir / f"{resume_name}.docx",
-        "cover_letter_pdf": output_dir / f"{cl_name}.pdf",
-        "cover_letter_docx": output_dir / f"{cl_name}.docx",
-        "interview_prep": output_dir / f"Interview Prep - {safe_company} - {safe_job}.md"
+        "output_dir": final_dir,
+        "resume_pdf": final_dir / f"{resume_name}.pdf",
+        "resume_docx": final_dir / f"{resume_name}.docx",
+        "cover_letter_pdf": final_dir / f"{cl_name}.pdf",
+        "cover_letter_docx": final_dir / f"{cl_name}.docx",
+        "interview_prep": final_dir / f"Interview Prep - {safe_name}.md"
     }
 
     # Internal Raw Cache
-    (output_dir / "resume_raw.md").write_text(tailored_resume, encoding="utf-8")
-    (output_dir / "cover_letter_raw.txt").write_text(cover_letter, encoding="utf-8")
+    (final_dir / "mission_intel_raw.md").write_text(f"# {job_title}\n\n## Bio\n{tailored_resume}\n\n## Outreach\n{cover_letter}", encoding="utf-8")
     
     # Save Interview Prep
     paths["interview_prep"].write_text(interview_prep, encoding="utf-8")
 
-    # Generate DOCX Versions (Always reliable)
+    # Generate DOCX Versions (The Master Format)
     _markdown_to_docx(tailored_resume, paths["resume_docx"], title=resume_name)
     _markdown_to_docx(cover_letter, paths["cover_letter_docx"], title=cl_name)
 
@@ -587,19 +599,7 @@ def generate_documents(
     except Exception as e:
         print(f"  ⚠️  PDF Generation Warning: {e}")
 
-    # Phase 28.0: Elite Pruning Logic (Keep last 5 surgical versions)
-    try:
-        resumes = sorted(list(output_parent.glob("Resume*.pdf")), key=os.path.getmtime)
-        if len(resumes) > 5:
-            for old in resumes[:-5]:
-                old.unlink()
-                # Also delete docx
-                docx_counterpart = old.with_suffix(".docx")
-                if docx_counterpart.exists(): docx_counterpart.unlink()
-            print(f"  🧹 Storage Optimized: Pruned legacy surgical versions (Kept last 5).")
-    except Exception as e:
-        print(f"  ⚠️  Pruning Warning: {e}")
-
+    print(f"  ✓ Mission assets deployed to: {final_dir}")
     return paths
 
 

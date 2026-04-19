@@ -9,6 +9,7 @@ Welcome to the Sovereign Agent. This guide will help you get set up and start ap
 2.  Download the file named `SovereignAgent.exe`.
 3.  Move it to a folder on your computer (like your Documents folder).
 4.  **Double-click** the file to launch. 
+
 ---
 
 ### For Non-Admin Users (Or if Setup fails)
@@ -29,6 +30,37 @@ When you first open the app, it will guide you through the **Settings** tab:
 
 ---
 
+## 📧 Mastering the Inbox (Setup App Passwords)
+
+To use the **Email Discovery** feature, you must connect your email account. For your security, Sovereign Agent requires an **App Password**—a 16-character code that allows the app to access your emails without using your main account password.
+
+### 🔑 How to get an App Password:
+
+#### **1. Gmail / Google**
+1.  Go to your [Google Account Security](https://myaccount.google.com/security) settings.
+2.  Enable **2-Step Verification** (if not already on).
+3.  Search for "App passwords" in the top search bar or go [here](https://myaccount.google.com/apppasswords).
+4.  Create a new app called "Sovereign Agent".
+5.  **Copy the 16-character code** and paste it into the "App Password" field in the Sovereign app.
+- **[Official Google Guide](https://support.google.com/accounts/answer/185833)**
+
+#### **2. Yahoo Mail**
+1.  Log in to your [Yahoo Account Security](https://login.yahoo.com/account/security) page.
+2.  Click **Generate app password**.
+3.  Select **Other App** and name it "Sovereign Agent".
+4.  Click **Generate**.
+5.  **Copy the code** and paste it into the Sovereign app.
+- **[Official Yahoo Guide](https://help.yahoo.com/kb/SLN15241.html)**
+
+#### **3. Outlook / Microsoft / Hotmail**
+1.  Go to [Security basics](https://account.microsoft.com/security) and sign in.
+2.  Select **Advanced security options**.
+3.  Under **App passwords**, select **Create a new app password**.
+4.  **Copy the code** and use it in the Sovereign app.
+- **[Official Microsoft Guide](https://support.microsoft.com/en-us/account-billing/using-app-passwords-with-apps-that-don-t-support-two-step-verification-5896ed11-4775-4e46-a01b-fd28e4952d0b)**
+
+---
+
 ## 🎯 Step 3: Your First Mission
 
 1.  Go to the **Target Scan** tab.
@@ -42,13 +74,13 @@ When you first open the app, it will guide you through the **Settings** tab:
 ## 🛡️ Best Practices & Security
 
 ### Why Sovereign is Safe:
-- **Human Mimicry**: The agent doesn't just "click" - it scrolls, pauses, and acts like a real person to protect your accounts from being flagged.
+- **Human Mimicry**: The agent scrolls, pauses, and acts like a real person to protect your accounts.
 - **Privacy Lock**: All your passwords and API keys stay on **your** computer. We can never see them.
-- **Surgical Precision**: Use the **Asset Hub** to review every document before it's sent, ensuring you are always represented perfectly.
+- **Surgical Precision**: Review every document in the **Asset Hub** before it's sent.
 
 ### Troubleshooting:
-- **App won't open?** Ensure you have an internet connection and have excluded the folder from your Antivirus scan if it's being blocked.
-- **Need help?** Click the **Community & Support** tab inside the app to report a bug or suggest a feature.
+- **App won't open?** Ensure you have an internet connection and check your antivirus settings.
+- **Need help?** Check our **[Discussion Board](https://github.com/wisdomgreat/JobAutomation/discussions)** for common fixes.
 
 ---
 

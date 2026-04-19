@@ -1,6 +1,7 @@
 import time
 import random
 import re
+import json
 from pathlib import Path
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -124,6 +125,7 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
             if val:
                 print(f"    - Filling {label[:25]}... with {val}")
                 inp.clear()
+                _stealth_click(inp, driver) # Force Focus (Phase 27.5)
                 _slow_type(inp, val)
                 
                 # Phase 27: LinkedIn/Indeed Autocomplete Handler
@@ -149,44 +151,68 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
     # Phase 27.2: If no inputs found, check for 'Upload' buttons that might reveal one
     if not file_inputs:
         try:
-            upload_buttons = driver.find_elements(By.XPATH, "//button[contains(., 'Upload') or contains(., 'Replace')]")
-            for btn in upload_buttons:
+            # Multi-strategy search for hidden inputs/upload triggers
+            upload_triggers = driver.find_elements(By.XPATH, "//button[contains(., 'Upload') or contains(., 'Replace')] | //div[contains(@class, 'upload')] | //span[contains(., 'Upload')]")
+            for btn in upload_triggers:
                 if btn.is_displayed():
-                    btn.click() # Reveal hidden input
-                    time.sleep(1)
-                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-                    break
+                    try:
+                        btn.click() # Reveal hidden input
+                        time.sleep(1.5)
+                        file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+                        if file_inputs: break
+                    except: pass
         except: pass
+
+    # Phase 31.0: Deep Scavenge for hidden inputs
+    if not file_inputs:
+        file_inputs = driver.find_elements(By.XPATH, "//input[@type='file']")
 
     for inp in file_inputs:
         try:
+            # Phase 31.0: Advanced Label/Context Matching
             label = _get_label(inp, driver).lower()
             aria_label = (inp.get_attribute("aria-label") or "").lower()
+            placeholder = (inp.get_attribute("placeholder") or "").lower()
             
             # Deep check: Look at parent text if label/aria is empty
             parent_text = ""
             try:
                 parent = inp.find_element(By.XPATH, "./..")
                 parent_text = parent.text.lower()
+                if not parent_text:
+                    grandparent = inp.find_element(By.XPATH, "./../..")
+                    parent_text = grandparent.text.lower()
             except: pass
 
-            is_resume = any(kw in label or kw in aria_label or kw in parent_text for kw in ["resume", "cv", "curriculum"])
-            is_cover = any(kw in label or kw in aria_label or kw in parent_text for kw in ["cover letter", "letter of interest"])
+            context_blob = f"{label} {aria_label} {placeholder} {parent_text}".lower()
+            
+            is_resume = any(kw in context_blob for kw in ["resume", "cv", "curriculum", "experience", "profile"])
+            is_cover = any(kw in context_blob for kw in ["cover letter", "letter of interest", "supporting document"])
 
             target_path = None
             if is_resume: target_path = resume_path
             elif is_cover: target_path = cover_letter_path
 
             if target_path and Path(target_path).exists():
-                # Force visibility for stealth/hidden inputs
-                driver.execute_script("arguments[0].style.display = 'block'; arguments[0].style.visibility = 'visible'; arguments[0].style.opacity = '1';", inp)
+                # Phase 31.0: AGGRESSIVE VISIBILITY FORCING
+                # Some sites use opacity 0 or position absolute outside viewport
+                driver.execute_script("""
+                    var el = arguments[0];
+                    el.style.display = 'block'; 
+                    el.style.visibility = 'visible'; 
+                    el.style.opacity = '1';
+                    el.style.width = '100px';
+                    el.style.height = '100px';
+                    el.style.position = 'relative';
+                    el.style.zIndex = '9999';
+                """, inp)
                 time.sleep(0.5)
                 
                 # Absolute path is required for file uploads
                 abs_path = str(Path(target_path).absolute())
                 inp.send_keys(abs_path)
                 print(f"  📎 Uploaded {('resume' if is_resume else 'cover letter')}: {Path(target_path).name}")
-                time.sleep(1.5)
+                time.sleep(2.0)
                 filled_count += 1
         except Exception:
             continue
@@ -208,6 +234,7 @@ def auto_fill_page(driver, profile_data, resume_path=None, cover_letter_path=Non
                 val = _answer_question_with_llm(label, profile_data, resume_text, is_dropdown=True)
 
             if val:
+                _stealth_click(sel_elem, driver) # Force Focus (Phase 27.5)
                 if _select_best_option(select, val):
                     filled_count += 1
                     _trigger_validation(sel_elem, driver)

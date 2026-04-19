@@ -26,13 +26,19 @@ def notify(title: str, message: str):
         print(f"[Warning] Could not send desktop notification: {e}")
 
 def _notify_windows(title, message):
-    from win10toast import ToastNotifier
-    toaster = ToastNotifier()
-    # Path to icon if available
-    icon = os.path.join(os.path.dirname(__file__), "..", "image", "favicon.ico")
-    if not os.path.exists(icon): icon = None
-    
-    toaster.show_toast(title, message, icon_path=icon, duration=10, threaded=True)
+    try:
+        from win10toast import ToastNotifier
+        toaster = ToastNotifier()
+        # Path to icon if available
+        icon = os.path.join(os.path.dirname(__file__), "..", "image", "favicon.ico")
+        if not os.path.exists(icon): icon = None
+        
+        toaster.show_toast(title, message, icon_path=icon, duration=10, threaded=True)
+    except ImportError:
+        # Silently fail, we already printed to console in notify()
+        pass
+    except Exception:
+        pass
 
 def _notify_mac(title, message):
     os.system(f"osascript -e 'display notification \"{message}\" with title \"{title}\"'")

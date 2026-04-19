@@ -83,7 +83,7 @@ class OllamaProvider(LLMProvider):
             "options": {"temperature": 0.7, "num_predict": 4096},
         }
 
-        resp = requests.post(url, json=payload, timeout=600)
+        resp = requests.post(url, json=payload, timeout=900)
 
         # If 404, fall back to legacy /api/generate
         if resp.status_code == 404:
@@ -106,7 +106,7 @@ class OllamaProvider(LLMProvider):
             "options": {"temperature": 0.7, "num_predict": 4096},
         }
 
-        resp = requests.post(url, json=payload, timeout=600)
+        resp = requests.post(url, json=payload, timeout=900)
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "").strip()
@@ -292,7 +292,8 @@ class ResilientLLM(LLMProvider):
             error_msg = str(e)
             # Only fallback on transient/connectivity errors
             if any(kw in error_msg.lower() for kw in ["connection", "timeout", "404", "not found", "reachable"]):
-                print(f"\n  [yellow]! Primary LLM ({type(self.primary).__name__}) unreachable. Retrying with fallback...[/]")
+                print(f"\n  [yellow]! Primary LLM ({type(self.primary).__name__}) unreachable: {error_msg}[/]")
+                print(f"  [yellow]  Retrying with cloud fallback...[/]")
                 try:
                     return self.fallback.generate(prompt, system_prompt)
                 except Exception as fe:
@@ -315,11 +316,23 @@ _providers = {
 _current_provider: LLMProvider | None = None
 
 
-def get_llm() -> LLMProvider:
-    """Get the configured LLM provider instance (wrapped in Resilience)."""
+def get_llm(resilient: bool = True) -> LLMProvider:
+    """
+    Get the configured LLM provider instance.
+    :param resilient: If True, wraps in ResilientLLM for automatic fallbacks.
+    """
     global _current_provider
-    if _current_provider is None:
-        provider_name = config.LLM_PROVIDER
+    provider_name = config.LLM_PROVIDER
+    
+    # Rebuild if non-existent or if the provider name in config has drifted
+    should_rebuild = _current_provider is None
+    if not should_rebuild:
+        # Check if requested provider matches the current primary type
+        current_type = type(_current_provider.primary).__name__.lower()
+        if provider_name not in current_type: # e.g., 'ollama' in 'ollamaprovider'
+            should_rebuild = True
+
+    if should_rebuild:
         if provider_name not in _providers:
             raise ValueError(
                 f"Unknown LLM provider: '{provider_name}'. "
@@ -327,7 +340,8 @@ def get_llm() -> LLMProvider:
             )
         base_provider = _providers[provider_name]()
         _current_provider = ResilientLLM(base_provider)
-    return _current_provider
+    
+    return _current_provider if resilient else _current_provider.primary
 
 
 def switch_provider(provider_name: str) -> LLMProvider:
@@ -345,9 +359,9 @@ def switch_provider(provider_name: str) -> LLMProvider:
 
 
 def test_connection() -> bool:
-    """Test if the current LLM provider is reachable."""
+    """Test if the current LLM provider is reachable (bypasses fallback)."""
     try:
-        llm = get_llm()
+        llm = get_llm(resilient=False)
         response = llm.generate("Say 'hello' in one word.", "You are a helpful assistant.")
         return bool(response)
     except Exception as e:

@@ -141,6 +141,13 @@ class EmailScanner:
         self.imap_server = "imap.mail.yahoo.com"
         self.imap_port = 993
         self.connection: Optional[imaplib.IMAP4_SSL] = None
+        
+        # Phase 32.3: Deep Cross-Reference Cache
+        from src.resume_builder import parse_resume
+        try:
+            self.base_resume_text = parse_resume()
+        except Exception:
+            self.base_resume_text = ""
 
     def connect(self) -> bool:
         """Connect to Yahoo Mail via IMAP SSL."""
@@ -417,46 +424,46 @@ class EmailScanner:
             )
             best_score = max(best_score, score)
         return best_score
-
-    def _llm_score_job(self, job_title: str, snippet: str) -> int:
-        """Use a fast LLM to score the job relevance (0-100)."""
-        if not config.TARGET_ROLES:
-            return 100
-
-        roles_str = ", ".join(config.TARGET_ROLES)
-        prompt = f"""
-        Score how well this job matches the user's target roles on a scale of 0 to 100.
-        Target Roles: {roles_str}
-        
-        Job Title: {job_title}
-        Snippet: {snippet}
-        
-        Consider seniority, field, and role type. 
-        Output ONLY the integer score.
+    def _llm_score_job(self, job_title: str, description: str) -> tuple[int, str]:
         """
+        Sovereign Intelligence: Uses AI to score a job match and provide reasoning.
+        
+        Output in this format:
+        SCORE: [0-100]
+        REASON: [Brief 1-sentence explanation]
+        """
+        prompt = f"Scoring match for {job_title}\nDescription: {description[:500]}"
         
         try:
             llm = get_llm()
             # Use a system prompt to enforce strict output
-            result = llm.generate(prompt, system_prompt="You are a job matching assistant. Output ONLY the integer score 0-100.")
-            # Extract digits
-            score_match = re.search(r'(\d+)', result)
+            result = llm.generate(prompt, system_prompt="You are a job matching assistant. Output SCORE then REASON.")
+            
+            score = 0
+            reason = "Standard Match"
+            
+            score_match = re.search(r'SCORE:\s*(\d+)', result, re.IGNORECASE)
             if score_match:
-                return int(score_match.group(1))
+                score = int(score_match.group(1))
+            
+            reason_match = re.search(r'REASON:\s*(.*)', result, re.IGNORECASE)
+            if reason_match:
+                reason = reason_match.group(1).strip()
+                if len(reason) > 80: reason = reason[:77] + "..."
+            
+            return score, reason
         except Exception:
             pass
-        return 0
+        return 0, "Error in match analysis"
 
-    def scan(self, days_back: int = 3, filter_roles: bool = True) -> list[JobAlert]:
+    def scan(self, days_back: int = 3, filter_roles: bool = True, allowed_platforms: Optional[list[str]] = None) -> list[JobAlert]:
         """
         Scan inbox for job alert emails.
 
         Args:
             days_back: How many days back to search
-            filter_roles: If True, only return jobs matching TARGET_ROLES
-
-        Returns:
-            List of JobAlert objects
+            filter_roles: If True, only return jobs matching TARGET_ROLES / Resume
+            allowed_platforms: Optional list of platform names to filter (e.g. ['linkedIn', 'indeed'])
         """
         alerts = []
         max_retries = 3
@@ -519,7 +526,13 @@ class EmailScanner:
 
                             source_key = self._identify_source(from_addr)
                             if not source_key: continue
+                            
                             source_name = JOB_ALERT_SENDERS[source_key]["name"]
+                            
+                            # Phase 32.3: Platform Filtering
+                            if allowed_platforms:
+                                if source_name.lower() not in [p.lower() for p in allowed_platforms]:
+                                    continue
 
                             html_body = self._extract_body_html(msg)
                             text_body = self._extract_body_text(msg)
@@ -543,26 +556,26 @@ class EmailScanner:
                             for job in jobs:
                                 fuzzy_score = self._calculate_match_score(job["title"])
                                 final_score = fuzzy_score
+                                match_reason = "Standard Match"
                                 if fuzzy_score >= 50:
-                                    llm_score = self._llm_score_job(job["title"], job["description"])
-                                    final_score = (fuzzy_score + llm_score) // 2
-
-                                if filter_roles and config.TARGET_ROLES:
-                                    if final_score < config.MIN_ROLE_MATCH_SCORE:
-                                        continue
-
-                                alert = JobAlert(
-                                    job_title=job["title"],
-                                    company=job.get("company", ""),
-                                    location=job.get("location", ""),
-                                    description=job.get("description", ""),
-                                    apply_url=job.get("url", ""),
-                                    source=source_name,
-                                    email_date=date_str,
-                                    email_subject=subject,
-                                    match_score=final_score,
-                                )
-                                alerts.append(alert)
+                                    # LLM-based Scoring (v32.9: Returns Score & Reason)
+                                    final_score, match_reason = self._llm_score_job(job["title"], job["description"])
+                                
+                                # 4. Create Alert if it meets threshold
+                                if final_score >= config.MATCH_SCORE_THRESHOLD:
+                                    alert = JobAlert(
+                                        job_title=job["title"],
+                                        company=job.get("company", ""),
+                                        location=job.get("location", ""),
+                                        description=job.get("description", ""),
+                                        apply_url=job.get("url", ""),
+                                        source=source_name,
+                                        email_date=date_str,
+                                        email_subject=subject,
+                                        match_score=final_score,
+                                        match_reason=match_reason
+                                    )
+                                    alerts.append(alert)
                         except Exception:
                             continue
 
@@ -604,11 +617,16 @@ class EmailScanner:
         tracker = Tracker()
         new_count = 0
         
+        # Sovereign Filter: Ignore common newsletter/travel noise
+        SENDER_BLACKLIST = [
+            "newsletter", "turkishairlines", "agoda", "nutrasystem", "asaptickets", 
+            "travel", "deals@", "offers@", "premium@linkedin.com", "foundr.com"
+        ]
+        
         # Keywords that signal a human recruiter reaching out
-        RECRUITER_KEYWORDS = [
+        HIGH_SIGNAL_KEYWORDS = [
             "interview", "talk with", "phone screen", "availability", 
-            "next steps", "hiring", "met with", "recruiter", 
-            "meeting invitation", "schedule a time"
+            "next steps", "met with", "meeting invitation", "schedule a time"
         ]
         
         try:
@@ -631,13 +649,24 @@ class EmailScanner:
                 # Deduplication check
                 if subject in existing_outreach: continue
                 
+                # Sovereign Filter check
+                if any(blacklist in from_addr.lower() for blacklist in SENDER_BLACKLIST):
+                    continue
+
                 body = self._extract_body_text(msg) or self._extract_body_html(msg)
                 body_lower = body.lower()
                 
                 # Score evidence of outreach
-                matches = [kw for kw in RECRUITER_KEYWORDS if kw in body_lower or kw in subject.lower()]
+                # Require at least one HIGH SIGNAL or 'recruiter' + 'hiring' context
+                is_outreach = any(kw in body_lower or kw in subject.lower() for kw in HIGH_SIGNAL_KEYWORDS)
                 
-                if matches:
+                # Secondary check for 'recruiter' context
+                if not is_outreach and ("recruiter" in body_lower or "hiring" in body_lower):
+                     # Must also have a 'call' or 'chat' context to avoid generic job alerts
+                     if any(kw in body_lower for kw in ["call", "chat", "speak", "interested in your background"]):
+                         is_outreach = True
+
+                if is_outreach:
                     print(f"  ✨ Recruiter Outreach Detected: {subject}")
                     
                     # Sentiment check (rudimentary)

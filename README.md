@@ -8,79 +8,69 @@
 
 ---
 
-## 🚀 Quickstart: The Sovereign Desktop App
+## 🚀 Quickstart: Start Applying in 2 Minutes
 
-If you just want to start applyling to jobs, follow these 3 steps:
+Sovereign Agent is built for the professional who wants results without the technical headache.
 
 1.  **Download**: Get the latest **[SovereignAgent.exe here](https://github.com/wisdomgreat/JobAutomation/releases/latest)**.
-2.  **Launch**: Double-click the file to open the app.
-3.  **Configure**: Our **Onboarding Wizard** will walk you through your setup in 2 minutes.
+2.  **Launch**: Double-click the file to open the app (No installation required for Portable version).
+3.  **Onboard**: The app will guide you through setting up your AI brain and linking your resume.
 
-*For more details, see our full **[Public Launch Guide](PUBLIC_LAUNCH_GUIDE.md)**.*
-
----
-
-## ✨ Features
-
-- **🧠 Deep Personalization**: We don't spam. Our engine reads every job description and meticulously tailors your resume and cover letter.
-- **🥷 Human-Centric Stealth**: Mimics human behavior (randomized scrolling, reading pauses) to protect your professional accounts.
-- **📊 Intelligence Dashboard**: Track every mission, view Match Scores, and take control with "Surgical Apply."
+> [!TIP]
+> **Using a custom email?** Check our **[App Password Guide](PUBLIC_LAUNCH_GUIDE.md#setup-app-passwords)** to connect your inbox safely for automated job discovery.
 
 ---
 
-## 🛡️ Security & Privacy
+## ✨ Why Sovereign Agent?
 
-**Your data stays with you.** Sovereign Agent was built with a "Privacy First" architecture:
+- **🧠 Deep Personalization**: We don't spam. Our engine reads every job description and meticulously tailors your resume and cover letter to beat ATS systems (85%+ alignment).
+- **🥷 Human-Centric Stealth**: Mimics human behavior (randomized scrolling, reading pauses) to protect your professional accounts from being flagged.
+- **📊 Intelligence Dashboard**: Track every mission in real-time, view Match Scores, and take control with "Surgical Apply."
+
+---
+
+## 🛡️ Your Privacy is Our Priority
+
+**Your data never leaves your computer.** 
 - **100% Local**: All resumes, AI configurations, and login details are stored only on your computer.
-- **Zero Telemetry**: We do not track your activity, collect your data, or phone home to any external servers.
-- **Open Source**: Our security claims are verified by the community. You can audit every line of code.
+- **Zero Telemetry**: We do not collect your data or "phone home."
+- **Open Source**: You can audit every line of code.
 
 ---
 
----
+## 💻 Technical Setup (For Developers)
 
-## 💻 Developer Setup (PyCharm / VS Code / Terminal)
-
-If the Windows installer is failing due to permissions, or if you prefer to run from source, follow these steps:
+If you prefer to run from source or contribute to the mission:
 
 ### 1. Prerequisites
-- **Python 3.10+**: [Download here](https://www.python.org/downloads/) (Ensure "Add Python to PATH" is checked).
-- **Git**: [Download here](https://git-scm.com/downloads).
+- **Python 3.10+**: [Download](https://www.python.org/downloads/) (Ensure "Add Python to PATH" is checked).
+- **Git**: [Download](https://git-scm.com/downloads).
 
-### 2. Setup (Generic Terminal)
+### 2. Manual Installation
 ```bash
 # Clone the repository
 git clone https://github.com/wisdomgreat/JobAutomation
 cd JobAutomation
 
-# Create a virtual environment
+# Create and activate environment
 python -m venv venv
-source venv/bin/activate  # Windows: venv\\Scripts\\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install gear
 pip install -r requirements.txt
 
-# Launch the App
+# Launch mission control
 python gui.py
 ```
 
-### 3. Setting up in PyCharm
-1.  **Open Project**: Launch PyCharm and select **Open**. Navigate to the `JobAutomation` folder.
-2.  **Configure Interpreter**:
-    - Go to `File` > `Settings` > `Project: JobAutomation` > `Python Interpreter`.
-    - Click **Add Interpreter** > **Add Local Interpreter**.
-    - Select **Virtualenv Environment** and ensure it's creating a new environment in the project folder.
-3.  **Install Requirements**: PyCharm will likely detect `requirements.txt` and offer to install them. If not, open the **Terminal** tab at the bottom and run `pip install -r requirements.txt`.
-4.  **Run**: Right-click `gui.py` in the project tree and select **Run 'gui'**.
-
 ---
 
-## 🤝 Community & Feedback
+## 🤝 Community & Support
 
-We are building this for the job seeker. Your feedback drives our roadmap.
-- **Spotted a bug?** [Report it here](https://github.com/wisdomgreat/JobAutomation/issues/new?labels=bug).
-- **Want a feature?** [Suggest it here](https://github.com/wisdomgreat/JobAutomation/issues/new?labels=enhancement).
-- **Need help?** Check the [Wiki](https://github.com/wisdomgreat/JobAutomation/wiki).
+We are building this for the job seeker. 
+- **Spotted a bug?** [Report it here](https://github.com/wisdomgreat/JobAutomation/issues).
+- **Want a feature?** [Suggest it here](https://github.com/wisdomgreat/JobAutomation/issues).
+- **Need help?** Check our **[Launch Guide](PUBLIC_LAUNCH_GUIDE.md)** for detailed troubleshooting.
 
 ---
 
