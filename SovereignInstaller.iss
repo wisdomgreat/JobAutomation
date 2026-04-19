@@ -3,7 +3,7 @@
 ; website: tdwas.com
 
 #define MyAppName "Sovereign Agent"
-#define MyAppVersion "26.10.0"
+#define MyAppVersion "30.2.1"
 #define MyAppPublisher "TDWAS Technology"
 #define MyAppURL "https://tdwas.com"
 #define MyAppExeName "SovereignAgent.exe"
@@ -28,7 +28,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=dist
-OutputBaseFilename=Sovereign_Agent_Setup_v26_10_0_9_0_8_0_7_0_0_0
+OutputBaseFilename=Sovereign_Agent_Setup_v30_2_1
 PrivilegesRequired=admin
 
 [Languages]

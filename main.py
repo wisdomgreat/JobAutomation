@@ -38,6 +38,10 @@ tracker = Tracker()
 
 # ── Helpers ──────────────────────────────────────────────────
 
+def _safe_print(msg):
+    """Helper to print messages using Rich console for styling."""
+    console.print(msg)
+
 def _display_applications(apps: list, title: str = "Applications", max_rows: int = 30):
     """Display applications in a formatted table."""
     table = Table(title=title, box=box.SIMPLE_HEAVY, padding=(0, 1))
