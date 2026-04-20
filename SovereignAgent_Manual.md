@@ -107,6 +107,8 @@ To protect your accounts on LinkedIn and Indeed, the agent includes human-mimicr
 2. **Pausing**: The agent will introduce randomized "reading" pauses (5-15 seconds) and scroll behavior to emulate a human user.
 3. **Headless Execution**: For a faster (but more detectable) experience, headless mode can be toggled; however, it is recommended to keep this disabled for primary account safety.
 
+![Search Matrix and Tactical Stealth Controls](docs/images/target_scan.png)
+
 ## 5. Operational Procedures
 
 ### Automated Job Scanning
@@ -123,11 +125,24 @@ To protect your accounts on LinkedIn and Indeed, the agent includes human-mimicr
    * **Open Output**: Access the generated files in the `output/` directory.
    * **Mark Applied**: Select the checkmark icon to log the application and clear it from the active queue.
 
+![Candidate CRM Management Interface](docs/images/candidate_crm.png)
+
+### Targeted Surgical Strike
+For specific job opportunities found outside the automated scan:
+1. Navigate to the **Target Scan** tab.
+2. Input the direct job URL into the **Surgical Precision Strike** field.
+3. Select **GENERATE NEW KIT**.
+4. Retrieve the tailored assets from the `output/` directory.
+
+![Mission Asset Hub and Surgical Strike Interface](docs/images/asset_hub.png)
+
 ## 6. Advanced Configuration: Email Integration
 The Email Scanner parses incoming job alerts from Gmail, Yahoo, or Outlook.
 1. **Enable App Passwords**: Your primary email password will not work for security reasons. Generate a 16-character "App Password" via your email provider's security settings.
 2. **Configure Security Tab**: Enter the email address and App Password in the corresponding platform tab.
 3. **Run Scan**: The agent will extract direct job links from your email notifications and add them as targets in the CRM.
+
+![In-App Setup and Telemetry Guides](docs/images/help_center.png)
 
 ## 7. Frequently Asked Questions (FAQ)
 
