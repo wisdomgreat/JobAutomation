@@ -11,6 +11,7 @@ Sovereign Agent leverages Large Language Models (LLMs) to automate the entire jo
 *   **Neural Tailoring**: Real-time resume and cover letter generation using GPT-4oz, Claude 3.5, or local LLMs.
 *   **Behavioral Stealth**: Human-optimized browsing patterns to ensure account safety.
 *   **Zero-Cloud Privacy**: All resumes, API keys, and identity data are stored strictly on your local machine.
+*   **Low-Impact Performance**: Event-driven architecture with zero busy-waiting, preserving battery life and SSD health.
 *   **Candidate CRM**: A centralized hub for tracking leads, interviews, and outreach activities.
 
 ## Quick Start (Cross-Platform)
