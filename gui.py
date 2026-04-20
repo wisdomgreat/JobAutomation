@@ -539,13 +539,24 @@ class JobAutomationApp(ctk.CTk):
         dir_card = self._create_card(self.asset_frame, "📂 GENERATED MISSION ASSETS")
         dir_card.grid(row=1, column=0, padx=40, pady=10, sticky="ew")
         
-        ctk.CTkLabel(dir_card, text="View and manage and tailored resumes and cover letters.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        ctk.CTkLabel(dir_card, text="View and manage tailored resumes and cover letters.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
         
         btn_row = ctk.CTkFrame(dir_card, fg_color="transparent")
         btn_row.grid(row=2, column=0, padx=25, pady=25, sticky="w")
         
-        ctk.CTkButton(btn_row, text="📂 OPEN OUTPUT FOLDER", command=lambda: open_path(DATA_DIR / "output")).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(btn_row, text="📂 OPEN OUTPUT FOLDER", command=lambda: open_path(config.OUTPUT_DIR)).pack(side="left", padx=(0, 15))
         ctk.CTkButton(btn_row, text="📑 GENERATE NEW KIT", fg_color="#34495e", command=lambda: self.run_surgical_apply(only_docs=True)).pack(side="left")
+
+        # Master Asset Commander (v30.2.10)
+        master_card = self._create_card(self.asset_frame, "🛡️ MASTER ASSET CONTROL")
+        master_card.grid(row=2, column=0, padx=40, pady=10, sticky="ew")
+        
+        ctk.CTkLabel(master_card, text="Upload your base resume to enable autonomous tailoring.", text_color="gray").grid(row=1, column=0, padx=25, pady=(10, 0), sticky="w")
+        
+        m_btn_row = ctk.CTkFrame(master_card, fg_color="transparent")
+        m_btn_row.grid(row=2, column=0, padx=25, pady=25, sticky="w")
+        
+        ctk.CTkButton(m_btn_row, text="📤 UPLOAD MASTER RESUME", fg_color="#2980b9", hover_color="#3498db", command=self.upload_master_resume).pack(side="left")
 
     def _build_crm_ui(self):
         """Sector 4: Candidate CRM & Application Tracker."""
@@ -603,6 +614,40 @@ class JobAutomationApp(ctk.CTk):
         ctk.CTkLabel(email_info, text=info_text, font=ctk.CTkFont(size=11), text_color="gray", justify="left").pack(side="left")
         ctk.CTkButton(email_info, text="❔ SETUP GUIDE", height=30, width=120, fg_color="#34495e", 
                       command=self._show_help_center).pack(side="right", padx=10)
+
+        # Platform Access Control (v30.2.10)
+        plat_card = self._create_card(self.intel_frame, "🚀 PLATFORM ACCESS CONTROL")
+        plat_card.grid(row=4, column=0, padx=40, pady=10, sticky="ew")
+        
+        plat_inner = ctk.CTkFrame(plat_card, fg_color="transparent")
+        plat_inner.grid(row=1, column=0, padx=25, pady=20, sticky="ew")
+        plat_inner.grid_columnconfigure((0, 1), weight=1)
+
+        # LinkedIn
+        ctk.CTkLabel(plat_inner, text="LinkedIn Email:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=0, sticky="w")
+        self.li_email = ctk.CTkEntry(plat_inner, height=35, placeholder_text="email@example.com")
+        self.li_email.grid(row=1, column=0, padx=(0, 10), pady=(5, 15), sticky="ew")
+        self.li_email.insert(0, config.LINKEDIN_EMAIL or "")
+        self.li_email.bind("<KeyRelease>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(plat_inner, text="LinkedIn Password:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=1, sticky="w")
+        self.li_pass = ctk.CTkEntry(plat_inner, height=35, show="*", placeholder_text="••••••••")
+        self.li_pass.grid(row=1, column=1, pady=(5, 15), sticky="ew")
+        self.li_pass.insert(0, config.LINKEDIN_PASSWORD or "")
+        self.li_pass.bind("<KeyRelease>", lambda e: self.save_platform_credentials())
+
+        # Indeed
+        ctk.CTkLabel(plat_inner, text="Indeed Email:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=2, column=0, sticky="w")
+        self.in_email = ctk.CTkEntry(plat_inner, height=35, placeholder_text="email@example.com")
+        self.in_email.grid(row=3, column=0, padx=(0, 10), pady=(5, 15), sticky="ew")
+        self.in_email.insert(0, config.INDEED_EMAIL or "")
+        self.in_email.bind("<KeyRelease>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(plat_inner, text="Indeed Password:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=2, column=1, sticky="w")
+        self.in_pass = ctk.CTkEntry(plat_inner, height=35, show="*", placeholder_text="••••••••")
+        self.in_pass.grid(row=3, column=1, pady=(5, 15), sticky="ew")
+        self.in_pass.insert(0, config.INDEED_PASSWORD or "")
+        self.in_pass.bind("<KeyRelease>", lambda e: self.save_platform_credentials())
 
         self.update_provider_visibility(config.LLM_PROVIDER)
 
@@ -829,17 +874,20 @@ class JobAutomationApp(ctk.CTk):
                 ("OFFER", stats.get('offers', 0), "#b8860b", "#f1c40f")
             ]
             
-            max_val = max(1, stages[0][1])
-            bar_height = 36
-            spacing = 12
+            max_val = max(1, sum(s[1] for s in stages)) # Total items for scaling
+            bar_height = 34
+            spacing = 14
             total_chart_h = len(stages) * (bar_height + spacing) - spacing
             start_y = (h - total_chart_h) / 2
-            left_margin = 100
-            right_margin = 55
+            left_margin = 110
+            right_margin = 65
             max_bar_width = w - left_margin - right_margin
             
+            # If nothing in funnel, show "Ghost" empty state
+            is_empty = all(s[1] == 0 for s in stages)
+            
             for i, (name, val, dark_color, bright_color) in enumerate(stages):
-                y0 = start_y + i * (bar_height + spacing)
+                y0 = max(start_y + i * (bar_height + spacing), 20)
                 y1 = y0 + bar_height
                 
                 # Background track (subtle)
@@ -848,9 +896,13 @@ class JobAutomationApp(ctk.CTk):
                     fill="#1a1e26", outline="#2a2e36", width=1
                 )
                 
-                # Filled bar (proportional)
-                ratio = val / max_val if max_val > 0 else 0
-                bar_w = max(max_bar_width * ratio, 4 if val > 0 else 0)
+                # Filled bar
+                if is_empty:
+                    ratio = 0
+                    bar_w = 0
+                else:
+                    ratio = val / max(1, stages[0][1]) # Proportion of Discovery
+                    bar_w = max(max_bar_width * ratio, 4 if val > 0 else 0)
                 
                 if bar_w > 0:
                     # Main bar
@@ -867,15 +919,17 @@ class JobAutomationApp(ctk.CTk):
                 
                 # Stage label (left)
                 self.funnel_canvas.create_text(
-                    left_margin - 10, (y0 + y1) / 2,
-                    text=name, fill="#8b949e", font=("Inter", 10, "bold"), anchor="e"
+                    left_margin - 15, (y0 + y1) / 2,
+                    text=name, fill="#8b949e" if is_empty else "white", 
+                    font=("Inter", 9, "bold"), anchor="e"
                 )
                 
                 # Value count (right of bar)
-                pct_text = f"{int(ratio * 100)}%" if i > 0 else ""
+                val_text = str(val) if not is_empty else "--"
                 self.funnel_canvas.create_text(
-                    left_margin + max_bar_width + 10, (y0 + y1) / 2,
-                    text=str(val), fill=bright_color, font=("Inter", 12, "bold"), anchor="w"
+                    left_margin + max_bar_width + 15, (y0 + y1) / 2,
+                    text=val_text, fill=bright_color if not is_empty else "#30363d", 
+                    font=("Inter", 12, "bold"), anchor="w"
                 )
                 
                 # Percentage inside bar (if wide enough)
@@ -1273,6 +1327,44 @@ class JobAutomationApp(ctk.CTk):
             
         if env_key:
             set_key(str(ENV_PATH), env_key, val)
+
+    def save_platform_credentials(self):
+        """Strategic Sync: Persist LinkedIn and Indeed credentials to .env."""
+        if self._initializing: return
+        
+        creds = {
+            "LINKEDIN_EMAIL": self.li_email.get(),
+            "LINKEDIN_PASSWORD": self.li_pass.get(),
+            "INDEED_EMAIL": self.in_email.get(),
+            "INDEED_PASSWORD": self.in_pass.get()
+        }
+        
+        for key, val in creds.items():
+            set_key(str(ENV_PATH), key, val)
+            setattr(config, key, val) # Update runtime config
+
+    def upload_master_resume(self):
+        """Tactical Injection: Overwrite base resume in permanent storage."""
+        file_path = filedialog.askopenfilename(
+            title="Select Master Resume",
+            filetypes=[("Resume Files", "*.pdf *.docx"), ("All Files", "*.*")]
+        )
+        
+        if not file_path: return
+        
+        ext = Path(file_path).suffix.lower()
+        target = config.BASE_RESUME_PDF if ext == ".pdf" else config.BASE_RESUME_DOCX
+        
+        try:
+            # Delete old versions to prevent confusion
+            if config.BASE_RESUME_PDF.exists(): config.BASE_RESUME_PDF.unlink()
+            if config.BASE_RESUME_DOCX.exists(): config.BASE_RESUME_DOCX.unlink()
+            
+            shutil.copy2(file_path, target)
+            messagebox.showinfo("Success", f"Master Resume successfully injected into {target.name}")
+            self.update_readiness_ui()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to upload resume: {e}")
 
     def update_match_label(self, val):
         config.MATCH_SCORE_THRESHOLD = int(val)

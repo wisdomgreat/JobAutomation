@@ -72,7 +72,16 @@ else:
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH, override=True)
 
-VERSION = "30.2.2"
+def _get_version():
+    try:
+        v_path = PROJECT_ROOT / "VERSION"
+        if v_path.exists():
+            return v_path.read_text().strip()
+    except Exception:
+        pass
+    return "30.2.10" # Fallback
+
+VERSION = _get_version()
 GITHUB_REPO = "wisdomgreat/JobAutomation"
 
 def _get(key: str, default: str = "") -> str:
