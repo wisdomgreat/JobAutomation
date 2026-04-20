@@ -64,13 +64,13 @@ run_migration()
 
 # 4. Load Configuration
 if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+    load_dotenv(ENV_PATH, override=True)
 else:
     # Initialize a clean .env from example if it doesn't exist
     example_env = PROJECT_ROOT / ".env.example"
     if example_env.exists():
         shutil.copy2(example_env, ENV_PATH)
-    load_dotenv(ENV_PATH)
+    load_dotenv(ENV_PATH, override=True)
 
 VERSION = "30.2.2"
 GITHUB_REPO = "wisdomgreat/JobAutomation"

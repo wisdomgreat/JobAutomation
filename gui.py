@@ -122,6 +122,7 @@ class JobAutomationApp(ctk.CTk):
 
         # UI State & AI Configuration
         self._current_frame_name = "Dashboard"
+        self._initializing = True # Flag to block UI events during startup
         self.key_visible = False
         self.legal_var = ctk.BooleanVar(value=True)
         self.active_tasks = []
@@ -243,6 +244,7 @@ class JobAutomationApp(ctk.CTk):
         self.after(1000, self.check_onboarding)
         self.after(2000, self.refresh_stats_loop)
         self.after(3000, self.background_update_check)
+        self._initializing = False
 
     def background_update_check(self):
         """Threaded non-blocking check for new mission directives."""
@@ -1189,7 +1191,7 @@ class JobAutomationApp(ctk.CTk):
         """Dynamic UI adjustment for Local vs Cloud brains."""
         # 1. Save whatever is currently in the entry before switching
         current_p = config.LLM_PROVIDER
-        if hasattr(self, 'key_entry'):
+        if hasattr(self, 'key_entry') and not self._initializing:
             self.provider_keys[current_p] = self.key_entry.get()
 
         set_key(str(ENV_PATH), "LLM_PROVIDER", provider)
