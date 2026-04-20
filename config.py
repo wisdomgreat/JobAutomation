@@ -72,14 +72,16 @@ else:
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH, override=True)
 
-def _get_version():
+def _get_version() -> str:
+    """Read the version from the VERSION file or return fallback."""
     try:
-        v_path = PROJECT_ROOT / "VERSION"
-        if v_path.exists():
-            return v_path.read_text().strip()
+        # In EXE, VERSION file should be in the same folder as the exe or in _MEIPASS
+        v_file = PROJECT_ROOT / "VERSION"
+        if v_file.exists():
+            return v_file.read_text().strip()
     except Exception:
         pass
-    return "30.2.10" # Fallback
+    return "30.2.11" # Current hardcode fallback
 
 VERSION = _get_version()
 GITHUB_REPO = "wisdomgreat/JobAutomation"
@@ -115,6 +117,13 @@ INDEED_EMAIL = _get("INDEED_EMAIL")
 INDEED_PASSWORD = _get("INDEED_PASSWORD")
 LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
 LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
+ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
+ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
+GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
+GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
+
+# Mission Strategy (Phase 38.0)
+DAYS_BACK = float(_get("DAYS_BACK", "7.0"))
 
 MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
 HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"

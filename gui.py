@@ -607,17 +607,36 @@ class JobAutomationApp(ctk.CTk):
         ctk.CTkButton(col1, text="🧪 TEST CONNECTION", height=40, fg_color="#34495e", command=self.test_ai_synapse).grid(row=6, column=0, pady=20, sticky="w")
         
         # Phase 32.5: Email Intelligence Configuration
-        ctk.CTkLabel(ai_card, text="📩 EMAIL DISCOVERY (APP PASSWORDS)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#00d4ff").grid(row=2, column=0, padx=25, pady=(20, 10), sticky="w")
-        email_info = ctk.CTkFrame(ai_card, fg_color="transparent")
-        email_info.grid(row=3, column=0, padx=25, pady=(0, 20), sticky="ew")
+        em_card = self._create_card(self.intel_frame, "📩 EMAIL DISCOVERY CORE")
+        em_card.grid(row=2, column=0, padx=40, pady=10, sticky="ew")
         
-        info_text = "To use Email Discovery, use an 'App Password' instead of your main password.\nRequires 2-Step Verification for Gmail, Yahoo, & Outlook."
-        ctk.CTkLabel(email_info, text=info_text, font=ctk.CTkFont(size=11), text_color="gray", justify="left").pack(side="left")
-        ctk.CTkButton(email_info, text="❔ SETUP GUIDE", height=30, width=120, fg_color="#34495e", 
-                      command=self._show_help_center).pack(side="right", padx=10)
+        em_inner = ctk.CTkFrame(em_card, fg_color="transparent")
+        em_inner.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="ew")
+        em_inner.grid_columnconfigure((0, 1), weight=1)
+        
+        ctk.CTkLabel(em_inner, text="Discovery Email:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=0, sticky="w")
+        self.em_addr = ctk.CTkEntry(em_inner, height=35, placeholder_text="yourname@yahoo.com")
+        self.em_addr.grid(row=1, column=0, padx=(0, 10), pady=5, sticky="ew")
+        self.em_addr.insert(0, config.YAHOO_EMAIL or "")
+        self.em_addr.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(em_inner, text="App-Specific Password:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=1, sticky="w")
+        self.em_pass = ctk.CTkEntry(em_inner, height=35, show="*", placeholder_text="xxxx xxxx xxxx xxxx")
+        self.em_pass.grid(row=1, column=1, pady=5, sticky="ew")
+        self.em_pass.insert(0, config.YAHOO_APP_PASSWORD or "")
+        self.em_pass.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        # Phase 38.0: Mission Strategy (Scan Depth)
+        ctk.CTkLabel(em_inner, text="Mission Recon Depth (Days Back):", font=ctk.CTkFont(size=11, weight="bold"), text_color="#00d4ff").grid(row=2, column=0, pady=(15, 0), sticky="w")
+        self.days_slider = ctk.CTkSlider(em_inner, from_=1, to=30, number_of_steps=29, command=self.update_days_label)
+        self.days_slider.grid(row=3, column=0, pady=5, sticky="ew")
+        self.days_slider.set(config.DAYS_BACK)
+        
+        self.days_label = ctk.CTkLabel(em_inner, text=f"{int(config.DAYS_BACK)} Days")
+        self.days_label.grid(row=3, column=1, padx=10, sticky="w")
 
         # Platform Access Control (v30.2.10)
-        plat_card = self._create_card(self.intel_frame, "🚀 PLATFORM ACCESS CONTROL")
+        plat_card = self._create_card(self.intel_frame, "🚀 PLATFORM COMMANDER")
         plat_card.grid(row=4, column=0, padx=40, pady=10, sticky="ew")
         
         plat_inner = ctk.CTkFrame(plat_card, fg_color="transparent")
@@ -648,7 +667,33 @@ class JobAutomationApp(ctk.CTk):
         self.in_pass = ctk.CTkEntry(plat_inner, height=35, show="*", placeholder_text="••••••••")
         self.in_pass.grid(row=3, column=1, pady=(5, 15), sticky="ew")
         self.in_pass.insert(0, config.INDEED_PASSWORD or "")
-        self.in_pass.bind("<KeyRelease>", lambda e: self.save_platform_credentials())
+        self.in_pass.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        # ZipRecruiter
+        ctk.CTkLabel(plat_inner, text="ZipRecruiter Email:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=4, column=0, sticky="w")
+        self.zr_email = ctk.CTkEntry(plat_inner, height=35, placeholder_text="email@example.com")
+        self.zr_email.grid(row=5, column=0, padx=(0, 10), pady=(5, 15), sticky="ew")
+        self.zr_email.insert(0, config.ZIPRECRUITER_EMAIL or "")
+        self.zr_email.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(plat_inner, text="ZipRecruiter Password:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=4, column=1, sticky="w")
+        self.zr_pass = ctk.CTkEntry(plat_inner, height=35, show="*", placeholder_text="••••••••")
+        self.zr_pass.grid(row=5, column=1, pady=(5, 15), sticky="ew")
+        self.zr_pass.insert(0, config.ZIPRECRUITER_PASSWORD or "")
+        self.zr_pass.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        # Glassdoor
+        ctk.CTkLabel(plat_inner, text="Glassdoor Email:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=6, column=0, sticky="w")
+        self.gd_email = ctk.CTkEntry(plat_inner, height=35, placeholder_text="email@example.com")
+        self.gd_email.grid(row=7, column=0, padx=(0, 10), pady=(5, 15), sticky="ew")
+        self.gd_email.insert(0, config.GLASSDOOR_EMAIL or "")
+        self.gd_email.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(plat_inner, text="Glassdoor Password:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=6, column=1, sticky="w")
+        self.gd_pass = ctk.CTkEntry(plat_inner, height=35, show="*", placeholder_text="••••••••")
+        self.gd_pass.grid(row=7, column=1, pady=(5, 15), sticky="ew")
+        self.gd_pass.insert(0, config.GLASSDOOR_PASSWORD or "")
+        self.gd_pass.bind("<FocusOut>", lambda e: self.save_platform_credentials())
 
         self.update_provider_visibility(config.LLM_PROVIDER)
 
@@ -1185,7 +1230,7 @@ class JobAutomationApp(ctk.CTk):
         
         def run_pipe():
             from main import run_auto_pipeline
-            run_auto_pipeline(days_back=3.0)
+            run_auto_pipeline(days_back=float(config.DAYS_BACK))
             self.refresh_stats()
             
         self._run_in_thread(run_pipe, name="Full Pipeline")
@@ -1196,11 +1241,10 @@ class JobAutomationApp(ctk.CTk):
         def launch_scan(platforms):
             print(f"[Intelligence] Commencing inbox scan for: {platforms}...")
             
-            def run_scan():
                 from src.email_scanner import EmailScanner
                 scanner = EmailScanner()
-                # Pass allowed_platforms to the scan method (v32.3)
-                alerts = scanner.scan(days_back=3.0, filter_roles=bool(config.TARGET_ROLES), allowed_platforms=platforms)
+                # Pass allowed_platforms and mission depth (DAYS_BACK) to scanning logic
+                alerts = scanner.scan(days_back=float(config.DAYS_BACK), filter_roles=bool(config.TARGET_ROLES), allowed_platforms=platforms)
                 scanner.disconnect()
                 
                 if not alerts:
@@ -1330,19 +1374,30 @@ class JobAutomationApp(ctk.CTk):
             set_key(str(ENV_PATH), env_key, val)
 
     def save_platform_credentials(self):
-        """Strategic Sync: Persist LinkedIn and Indeed credentials to .env."""
+        """Strategic Sync: Persist Platform Credentials and Mission Strategy to .env."""
         if self._initializing: return
         
         creds = {
             "LINKEDIN_EMAIL": self.li_email.get(),
             "LINKEDIN_PASSWORD": self.li_pass.get(),
             "INDEED_EMAIL": self.in_email.get(),
-            "INDEED_PASSWORD": self.in_pass.get()
+            "INDEED_PASSWORD": self.in_pass.get(),
+            "ZIPRECRUITER_EMAIL": self.zr_email.get(),
+            "ZIPRECRUITER_PASSWORD": self.zr_pass.get(),
+            "GLASSDOOR_EMAIL": self.gd_email.get(),
+            "GLASSDOOR_PASSWORD": self.gd_pass.get(),
+            "YAHOO_EMAIL": self.em_addr.get(),
+            "YAHOO_APP_PASSWORD": self.em_pass.get(),
+            "DAYS_BACK": str(int(self.days_slider.get()))
         }
         
         for key, val in creds.items():
             set_key(str(ENV_PATH), key, val)
             setattr(config, key, val) # Update runtime config
+
+    def update_days_label(self, val):
+        self.days_label.configure(text=f"{int(val)} Days")
+        self.save_platform_credentials()
 
     def upload_master_resume(self):
         """Tactical Injection: Overwrite base resume in permanent storage."""

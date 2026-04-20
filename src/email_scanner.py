@@ -501,9 +501,11 @@ class EmailScanner:
 
                     ids = message_ids[0].split()
                     recent_ids = ids[-config.MAX_JOBS_PER_SCAN:]
+                    total_p = len(recent_ids)
 
-                    for msg_id in recent_ids:
+                    for i, msg_id in enumerate(recent_ids, 1):
                         try:
+                            print(f"[Intelligence] {source_key.upper()}: Processing mission alert {i} of {total_p}...")
                             status, msg_data = self.connection.fetch(msg_id, "(RFC822)")
                             if status != "OK": continue
 
