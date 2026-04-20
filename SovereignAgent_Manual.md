@@ -3,6 +3,8 @@
 ## 1. Overview and Manifesto
 In the contemporary landscape of automated HR filters and "Ghost Jobs," the job seeker requires a technological advantage. Sovereign Agent serves as a highly intelligent, localized automation engine designed to handle the repetitive aspects of the job application process, allowing the user to focus on interview preparation and career strategy.
 
+![Sovereign Agent Mission Command Dashboard](docs/images/dashboard_hero.png)
+
 ## 2. Security and Privacy Policy
 Privacy is a fundamental component of the Sovereign Agent architecture.
 * **Localized Storage**: All resumes, AI configurations, and authentication credentials are stored exclusively on the user's local machine.
