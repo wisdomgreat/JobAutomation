@@ -601,8 +601,10 @@ class JobAutomationApp(ctk.CTk):
         
         ctk.CTkLabel(col1, text="Target Intelligence Model:").grid(row=4, column=0, pady=(15, 0), sticky="w")
         self.model_var = ctk.StringVar(value=self._get_current_model())
-        self.model_menu = ctk.CTkOptionMenu(col1, values=self.provider_models.get(config.LLM_PROVIDER, ["default"]), variable=self.model_var, command=self.save_model_choice)
-        self.model_menu.grid(row=5, column=0, pady=5, sticky="ew")
+        self.model_box = ctk.CTkComboBox(col1, values=self.provider_models.get(config.LLM_PROVIDER, ["default"]), variable=self.model_var, command=self.save_model_choice)
+        self.model_box.grid(row=5, column=0, pady=5, sticky="ew")
+        self.model_box.bind("<KeyRelease>", lambda e: self.save_model_choice(self.model_var.get()))
+        self.model_box.bind("<FocusOut>", lambda e: self.save_model_choice(self.model_var.get()))
 
         ctk.CTkButton(col1, text="🧪 TEST CONNECTION", height=40, fg_color="#34495e", command=self.test_ai_synapse).grid(row=6, column=0, pady=20, sticky="w")
         
@@ -1307,19 +1309,23 @@ class JobAutomationApp(ctk.CTk):
         
         # Update model list
         models = self.provider_models.get(provider, ["default"])
-        self.model_menu.configure(values=models)
-        self.model_var.set(models[0])
-        self.save_model_choice(models[0])
+        self.model_box.configure(values=models)
+        
+        # Get correct model for this provider (from config)
+        current_model = self._get_current_model_for_provider(provider)
+        self.model_var.set(current_model)
 
     def _get_current_model(self):
-        p = config.LLM_PROVIDER
-        if p == "openai": return config.OPENAI_MODEL
-        if p == "gemini": return config.GEMINI_MODEL
-        if p == "claude": return config.ANTHROPIC_MODEL
-        if p == "ollama": return config.OLLAMA_MODEL
-        if p == "lmstudio": return config.LMSTUDIO_MODEL
-        if p == "groq": return config.GROQ_MODEL
-        if p == "openrouter": return config.OPENROUTER_MODEL
+        return self._get_current_model_for_provider(config.LLM_PROVIDER)
+
+    def _get_current_model_for_provider(self, p):
+        if p == "openai": return config.OPENAI_MODEL or "gpt-4o"
+        if p == "gemini": return config.GEMINI_MODEL or "gemini-2.0-flash"
+        if p == "claude": return config.ANTHROPIC_MODEL or "claude-3-5-sonnet-20240620"
+        if p == "ollama": return config.OLLAMA_MODEL or "llama3"
+        if p == "lmstudio": return config.LMSTUDIO_MODEL or "default"
+        if p == "groq": return config.GROQ_MODEL or "llama-3.1-70b-versatile"
+        if p == "openrouter": return config.OPENROUTER_MODEL or "google/gemini-2.0-flash-001"
         return "default"
 
     def save_model_choice(self, model):

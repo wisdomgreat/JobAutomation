@@ -452,9 +452,11 @@ class EmailScanner:
                 if len(reason) > 80: reason = reason[:77] + "..."
             
             return score, reason
-        except Exception:
-            pass
-        return 0, "Error in match analysis"
+        except Exception as e:
+            # Phase 3: Fail-Open Strategy (v30.3.5)
+            # If AI is offline, fallback to keyword-based density score
+            fallback_score = self._calculate_match_score(job_title)
+            return fallback_score, f"Fallback Match (AI Offline: {str(e)[:40]}...)"
 
     def scan(self, days_back: int = 3, filter_roles: bool = True, allowed_platforms: Optional[list[str]] = None) -> list[JobAlert]:
         """

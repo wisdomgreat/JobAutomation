@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 import requests
+import time
+import random
 from openai import OpenAI
 
 # Add project root to path if running directly
@@ -242,23 +244,32 @@ class OpenRouterProvider(LLMProvider):
         self.model = config.OPENROUTER_MODEL or "google/gemini-2.0-flash-001"
 
     def generate(self, prompt: str, system_prompt: str = "") -> str:
-        try:
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": prompt})
 
-            # OpenRouter specific headers can be added here if needed, 
-            # but for anonymity we keep it minimal.
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=4096,
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            raise RuntimeError(f"OpenRouter API error: {e}")
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                error_msg = str(e)
+                # Retry on rate limit (429) or gateway timeout (504) or aborted requests
+                is_transient = any(kw in error_msg.lower() for kw in ["429", "rate limit", "504", "timeout", "aborted"])
+                
+                if is_transient and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (random.random() * 1)
+                    print(f"\n  [yellow]! OpenRouter transient error (Attempt {attempt+1}/{max_retries}). Retrying in {wait_time:.1f}s...[/]")
+                    time.sleep(wait_time)
+                    continue
+                raise RuntimeError(f"OpenRouter API error: {e}")
 
 
 class ResilientLLM(LLMProvider):
@@ -290,10 +301,10 @@ class ResilientLLM(LLMProvider):
                 raise
             
             error_msg = str(e)
-            # Only fallback on transient/connectivity errors
-            if any(kw in error_msg.lower() for kw in ["connection", "timeout", "404", "not found", "reachable"]):
-                print(f"\n  [yellow]! Primary LLM ({type(self.primary).__name__}) unreachable: {error_msg}[/]")
-                print(f"  [yellow]  Retrying with cloud fallback...[/]")
+            # Only fallback on transient/connectivity errors or rate limits
+            if any(kw in error_msg.lower() for kw in ["connection", "timeout", "404", "not found", "reachable", "429", "rate limit", "aborted"]):
+                print(f"\n  [yellow]! Primary LLM ({type(self.primary).__name__}) unreachable or rate limited: {error_msg}[/]")
+                print(f"  [yellow]  Attempting resilient pivot to cloud fallback...[/]")
                 try:
                     return self.fallback.generate(prompt, system_prompt)
                 except Exception as fe:
