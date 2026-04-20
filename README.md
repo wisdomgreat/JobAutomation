@@ -47,8 +47,10 @@ If you prefer to run from source or contribute to the mission:
 - **Git**: [Download](https://git-scm.com/downloads).
 
 ### 2. Manual Installation
+For full setup walkthroughs tailored to **Windows**, **macOS**, and **Linux/Unix**, please read the **[Multi-Platform Setup Guide](SETUP_GUIDE.md)**!
+
 ```bash
-# Clone the repository
+# General Quick-Run (Ensure Python 3.10+ is installed)
 git clone https://github.com/wisdomgreat/JobAutomation
 cd JobAutomation
 
@@ -56,10 +58,8 @@ cd JobAutomation
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install gear
+# Install gear & Launch
 pip install -r requirements.txt
-
-# Launch mission control
 python gui.py
 ```
 
