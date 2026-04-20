@@ -89,6 +89,7 @@ class JobAutomationApp(ctk.CTk):
         # Sovereign Path Resolution
         self.db_path = config.DB_PATH
         self.tracker = Tracker(self.db_path)
+        self.profile = ApplicantProfile() # Phase 36.3: Centralized Profile Instance
         
         # Ensure Critical Folders Exist
         (DATA_DIR / "output").mkdir(parents=True, exist_ok=True)
@@ -419,6 +420,21 @@ class JobAutomationApp(ctk.CTk):
         ctrl_panel.grid(row=0, column=1, padx=25, pady=25, sticky="ns")
         
         ctk.CTkLabel(ctrl_panel, text="QUICK MISSION CONTROLS", font=ctk.CTkFont(size=11, weight="bold")).pack(pady=(30, 20))
+        
+        # Phase 36.0: Readiness Checklist Widget
+        readiness_frame = ctk.CTkFrame(ctrl_panel, fg_color="transparent")
+        readiness_frame.pack(pady=(0, 20), padx=20, fill="x")
+        
+        ctk.CTkLabel(readiness_frame, text="MISSION READINESS", font=ctk.CTkFont(size=10, weight="bold"), text_color="gray").pack(anchor="w", padx=10)
+        
+        self.ready_ai = ctk.CTkLabel(readiness_frame, text="○ AI Synapse", font=ctk.CTkFont(size=12))
+        self.ready_ai.pack(anchor="w", padx=10, pady=2)
+        
+        self.ready_id = ctk.CTkLabel(readiness_frame, text="○ Identity Sync", font=ctk.CTkFont(size=12))
+        self.ready_id.pack(anchor="w", padx=10, pady=2)
+        
+        self.ready_resume = ctk.CTkLabel(readiness_frame, text="○ Master Resume", font=ctk.CTkFont(size=12))
+        self.ready_resume.pack(anchor="w", padx=10, pady=2)
         
         ctk.CTkButton(ctrl_panel, text="🚀 FULL AUTO-PILOT", height=50, fg_color="#27ae60", hover_color="#2ecc71", font=ctk.CTkFont(weight="bold"), 
                      command=self.run_full_pipeline).pack(pady=10, padx=30, fill="x")
@@ -780,6 +796,9 @@ class JobAutomationApp(ctk.CTk):
     def refresh_stats(self):
         if not self.winfo_exists(): return
         try:
+            # Phase 36.2: Pulse Sync Readiness
+            self.update_readiness_ui()
+            
             stats = self.tracker.get_stats()
             self.stat_apps.configure(text=str(stats.get('applied', 0)))
             self.stat_interviews.configure(text=str(stats.get('interviews', 0)))
@@ -1098,6 +1117,13 @@ class JobAutomationApp(ctk.CTk):
 
     def run_full_pipeline(self):
         """Parity: Full Pipeline (100% Auto)."""
+        # Phase 36.1: Readiness Gate
+        ai_ok, id_ok, res_ok = self.get_mission_status()
+        if not (ai_ok and id_ok and res_ok):
+            print("\n[Security] ✗ MISSION ABORTED: Readiness Checklist Incomplete.")
+            print("[Security] Ensure AI, Identity, and Resume are properly configured.")
+            return
+
         print("[Operation] INITIATING FULL AUTO-PIPELINE (Autonomous Mode)...")
         
         def run_pipe():
@@ -1309,9 +1335,36 @@ class JobAutomationApp(ctk.CTk):
             sys.stdout = LogRedirector(self.log_box)
             print("[System] Sovereign Console Online. Terminal handshake complete.")
 
+    def get_mission_status(self):
+        """High-fidelity scan of system readiness parameters."""
+        # 1. AI Check
+        ai_key = self.provider_keys.get(config.LLM_PROVIDER, "")
+        ai_ready = len(str(ai_key)) > 5
+        
+        # 2. Identity Check (Uses centralized profile instance)
+        name = self.profile.data.get("personal", {}).get("first_name", "")
+        email = self.profile.data.get("personal", {}).get("email", "")
+        id_ready = len(name) > 1 and len(email) > 3
+        
+        # 3. Resume Check (Cross-platform path resolution)
+        # We use .resolve() to ensure OS-agnostic path comparison if needed
+        res_ready = config.BASE_RESUME_PDF.exists() or config.BASE_RESUME_DOCX.exists()
+        
+        return ai_ready, id_ready, res_ready
+
+    def update_readiness_ui(self):
+        """Synchronize the Dashboard checklist with actual system state."""
+        if not hasattr(self, "ready_ai"): return
+        
+        ai, ident, res = self.get_mission_status()
+        
+        self.ready_ai.configure(text=f"{'✅' if ai else '○'} AI Synapse", text_color="#2ecc71" if ai else "gray")
+        self.ready_id.configure(text=f"{'✅' if ident else '○'} Identity Sync", text_color="#2ecc71" if ident else "gray")
+        self.ready_resume.configure(text=f"{'✅' if res else '○'} Master Resume", text_color="#2ecc71" if res else "gray")
+
     def check_onboarding(self):
-        # Safety gate implementation...
-        pass
+        # Initial scan to populate UI
+        self.update_readiness_ui()
 
     def on_closing(self):
         sys.stdout = self._old_stdout
