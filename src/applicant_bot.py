@@ -42,13 +42,19 @@ from src.applicant_profile import ApplicantProfile
 
 
 def _human_delay(min_s: float = 1.5, max_s: float = 4.0):
-    """Sleep for a random duration to mimic human behavior."""
-    time.sleep(random.uniform(min_s, max_s))
+    """Sleep for a random duration to mimic human behavior. Respects STEALTH_MODE."""
+    if config.STEALTH_MODE:
+        time.sleep(random.uniform(min_s, max_s))
+    else:
+        time.sleep(random.uniform(0.1, 0.3))  # Minimal delay for speed mode
 
 
 def _short_delay():
     """Short delay for quick actions."""
-    time.sleep(random.uniform(0.5, 1.5))
+    if config.STEALTH_MODE:
+        time.sleep(random.uniform(0.5, 1.5))
+    else:
+        time.sleep(random.uniform(0.05, 0.15))
 
 def _slow_type(element, text: str, delay_range: tuple = (0.05, 0.2)):
     """Type into an element with human-like variability in speed."""
@@ -221,12 +227,24 @@ class ApplicantBot:
             h = random.randint(950, 1080)
             options.add_argument(f"--window-size={w},{h}")
             options.add_argument("--disable-blink-features=AutomationControlled")
-            options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+            
+            # Phase 36.1: Enhanced Stealth Headers
+            options.add_argument(f"user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+            options.add_argument("--lang=en-US,en;q=0.9")
+            options.add_argument("--accept-lang=en-US,en;q=0.9")
+            
+            # Client Hints Masking
+            options.add_argument("--disable-features=IsolateOrigins,site-per-process")
             
             return options
 
         chrome_ver = self._detect_chrome_version()
         self._log(f"Detected Chrome major version: {chrome_ver}")
+        
+        # Phase 36.1: Version Anomaly Masking
+        # If the detected version is extremely high (e.g. v147), it's likely a modified 
+        # or Canary build. We spoof a stable current version (v123) to reduce bot signature.
+        effective_ver = chrome_ver if (chrome_ver and chrome_ver < 140) else 123
         
         common_kwargs = {
             "user_data_dir": str(self.profile_dir),
@@ -243,17 +261,23 @@ class ApplicantBot:
                     time.sleep(2)
 
                 kwargs = {**common_kwargs, "options": get_options()}
-                if chrome_ver:
-                    kwargs["version_main"] = chrome_ver
                 
                 if self.browser_executable:
                     kwargs["browser_executable_path"] = self.browser_executable
                     
                 driver = uc.Chrome(**kwargs)
                 
-                # Mask navigator.webdriver via CDP
+                # Phase 36.3: Aggressive Identity Masking (CDP Force)
+                # Overrides UA in both headers and JS to bypass UC's default v147 patches
+                stable_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+                
+                driver.execute_cdp_cmd("Network.setUserAgentOverride", {
+                    "userAgent": stable_ua
+                })
+                
+                # Mask navigator via CDP
                 driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-                    "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                    "source": f"Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}}); Object.defineProperty(navigator, 'userAgent', {{get: () => '{stable_ua}'}});"
                 })
                 
                 driver.set_page_load_timeout(300)
@@ -1687,27 +1711,135 @@ class ZipRecruiterBot(ExternalBot):
 
     def search(self, keywords: str, location: str, limit: int = 15) -> list[dict]:
         self.start()
-        search_url = f"https://www.ziprecruiter.com/candidate/search?search={keywords}&location={location}"
-        self.driver.get(search_url)
-        _human_delay(4, 6)
         
-        # Phase 35.1: Global Search Trigger (ZipRecruiter)
+        # Phase 36.2: Interactive Home Navigation (Stealth Upgrade)
+        self.driver.get("https://www.ziprecruiter.com/")
+        _human_delay(3, 5)
+        
         try:
-            if not self._element_exists(By.CSS_SELECTOR, ".job_result, article.job_result"):
-                self._log("ZipRecruiter results stalled. Clicking search trigger...")
-                trigger = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit'], .search_button")
-                self._safe_click(trigger)
+            # Dismiss any "Are you a business?" overlays
+            self._dismiss_popups()
+            
+            # Phase 36.4: Resilient Input Discovery
+            def get_inputs():
+                # Attempt 1: Specific Name/ID
+                try:
+                    kw = self.driver.find_element(By.NAME, "search")
+                    loc = self.driver.find_element(By.NAME, "location")
+                    return kw, loc
+                except: pass
+
+                # Attempt 2: Placeholder Match
+                try:
+                    inputs = self.driver.find_elements(By.CSS_SELECTOR, "input:not([type='hidden'])")
+                    kw, loc = None, None
+                    for i in inputs:
+                        ph = (i.get_attribute("placeholder") or "").lower()
+                        if "job" in ph or "keyword" in ph or "title" in ph: kw = i
+                        if "city" in ph or "location" in ph or "zip" in ph or "where" in ph: loc = i
+                    if kw and loc: return kw, loc
+                except: pass
+
+                # Attempt 3: Positional Fallback (Left is Keywords, Right is Location)
+                try:
+                    vis_inputs = [i for i in self.driver.find_elements(By.CSS_SELECTOR, "input:not([type='hidden'])") if i.is_displayed()]
+                    if len(vis_inputs) >= 2:
+                        return vis_inputs[0], vis_inputs[1]
+                except: pass
+                
+                return None, None
+
+            kw_input, loc_input = get_inputs()
+            
+            if kw_input and loc_input:
+                # Perform human-like entry with JS Fallback
+                self.driver.execute_script("arguments[0].scrollIntoView();", kw_input)
+                kw_input.click()
+                _short_delay()
+                
+                # Double-tap: Standard typing + JS Force
+                kw_input.send_keys(Keys.CONTROL + "a")
+                kw_input.send_keys(Keys.BACKSPACE)
+                _slow_type(kw_input, keywords)
+                self.driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', { bubbles: true })); arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", kw_input, keywords)
+                _short_delay()
+                
+                loc_input.click()
+                loc_input.send_keys(Keys.CONTROL + "a")
+                loc_input.send_keys(Keys.BACKSPACE)
+                _slow_type(loc_input, location)
+                self.driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', { bubbles: true })); arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", loc_input, location)
+                _human_delay(1, 2)
+                
+                # Submit via the button to trigger analytics correctly
+                submit_btn = None
+                try:
+                    submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit'], .search_button")
+                except:
+                    try:
+                        submit_btn = self.driver.find_element(By.XPATH, "//button[contains(., 'Search')]")
+                    except: pass
+                
+                if submit_btn:
+                    self._safe_click(submit_btn)
+                else:
+                    loc_input.send_keys(Keys.ENTER)
+                
+                _human_delay(4, 7)
+            else:
+                self._log("Search inputs not found. Fallback to direct navigation.")
+                search_url = f"https://www.ziprecruiter.com/jobs-search?search={keywords}&location={location}"
+                self.driver.get(search_url)
                 _human_delay(4, 6)
-        except: pass
+            
+            # Detect Cloudflare/Block Page
+            if "just a moment" in self.driver.title.lower() or "verify you are human" in self.driver.page_source.lower():
+                _safe_print("  [bold red]⚠️  Security Block: ZipRecruiter requires manual Human Verification.[/]")
+                time.sleep(10)
+                
+        except Exception as e:
+            self._log(f"Search trigger failed: {e}")
+            search_url = f"https://www.ziprecruiter.com/jobs-search?search={keywords}&location={location}"
+            self.driver.get(search_url)
+            _human_delay(4, 6)
+            
         jobs = []
         try:
-            cards = self.driver.find_elements(By.CSS_SELECTOR, ".job_content, .job_result, article.job_result")
+            # 2026 Resilient Selectors
+            selectors = [
+                ".job_content", 
+                ".job_result", 
+                "article.job_result",
+                "[data-testid='job-list-item']",
+                ".job_card"
+            ]
+            cards = []
+            for sel in selectors:
+                cards = self.driver.find_elements(By.CSS_SELECTOR, sel)
+                if cards: break
+                
             for card in cards[:limit]:
                 try:
-                    title_el = card.find_element(By.CSS_SELECTOR, ".job_title, h2")
-                    title = title_el.text.strip()
+                    # Robust extraction cluster
+                    title = "Untitled Role"
+                    for ts in [".job_title", "h2", "h3", ".title"]:
+                        try:
+                            el = card.find_element(By.CSS_SELECTOR, ts)
+                            if el.text.strip():
+                                title = el.text.strip()
+                                break
+                        except: continue
+                    
+                    company = "Unknown Company"
+                    for cs in [".company_name", ".name", ".company_location", "span[class*='company']"]:
+                        try:
+                            el = card.find_element(By.CSS_SELECTOR, cs)
+                            if el.text.strip():
+                                company = el.text.strip().split('\n')[0]
+                                break
+                        except: continue
+                        
                     url = card.find_element(By.TAG_NAME, "a").get_attribute("href")
-                    company = card.find_element(By.CSS_SELECTOR, ".company_name, .name").text.strip()
                     if url:
                         jobs.append({"job_title": title, "company": company, "apply_url": url, "source": "ZipRecruiter"})
                 except: continue
@@ -2115,8 +2247,11 @@ def cleanup_browser_processes():
         # Only kill chromes that are using the JobAutomation data directory
         if sys.platform == "win32":
             # Use WMIC to find and terminate chromes with our specific user-data-dir in command line
-            wmic_cmd = 'wmic process where "name=\'chrome.exe\' and CommandLine like \'%%browser_sessions%%\'" call terminate'
-            subprocess.run(wmic_cmd, shell=True, capture_output=True)
+            subprocess.run(
+                ["wmic", "process", "where", "name='chrome.exe' and CommandLine like '%browser_sessions%'", "call", "terminate"],
+                capture_output=True,
+                timeout=10
+            )
             
         # 3. FORCE PROFILE UNLOCK
         # Remove SingletonLock files that prevent startup after a crash

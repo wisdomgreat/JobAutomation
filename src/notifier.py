@@ -41,10 +41,12 @@ def _notify_windows(title, message):
         pass
 
 def _notify_mac(title, message):
-    os.system(f"osascript -e 'display notification \"{message}\" with title \"{title}\"'")
+    import subprocess
+    subprocess.run(["osascript", "-e", f'display notification "{message}" with title "{title}"'])
 
 def _notify_linux(title, message):
-    os.system(f"notify-send '{title}' '{message}'")
+    import subprocess
+    subprocess.run(["notify-send", title, message])
 
 if __name__ == "__main__":
     # Test

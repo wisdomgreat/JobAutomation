@@ -72,7 +72,7 @@ else:
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH)
 
-VERSION = "30.2.1"
+VERSION = "30.2.2"
 GITHUB_REPO = "wisdomgreat/JobAutomation"
 
 def _get(key: str, default: str = "") -> str:
@@ -109,6 +109,7 @@ LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
 
 MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
 HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
+STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
 TELEMETRY_ENABLED = _get("TELEMETRY_ENABLED", "true").lower() == "true"
 ACCOUNT_PASSWORD = _get("ACCOUNT_PASSWORD", "JobBotPass!2024")
 

@@ -417,8 +417,6 @@ class Tracker:
             conn.commit()
             print(f"[System] Mission target {app_id} successfully terminated.")
 
-            return {"total": total, "by_status": by_status}
-
     def get_analytics(self) -> dict:
         """Get detailed application analytics."""
         with sqlite3.connect(str(self.db_path)) as conn:

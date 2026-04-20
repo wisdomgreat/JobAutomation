@@ -247,23 +247,25 @@ class JobAutomationApp(ctk.CTk):
         """Threaded non-blocking check for new mission directives."""
         def run_check():
             try:
-                from src.update_manager import check_for_updates
+                from src.update_manager import check_for_updates, get_update_info
                 if check_for_updates():
-                    self.after(0, self._signal_update_available)
+                    info = get_update_info()
+                    self.after(0, lambda: self._signal_update_available(info))
             except: pass
         threading.Thread(target=run_check, daemon=True).start()
 
-    def _signal_update_available(self):
-        """Visual notification of new mission code."""
+    def _signal_update_available(self, info=None):
+        """Visual notification with one-click seamless update."""
+        version_text = f"v{info['version']}" if info and info.get('version') else "NEW"
+        
         if hasattr(self, 'update_notif_label'):
             self.update_notif_label.configure(
-                text="🔔 MISSION UPDATE AVAILABLE", 
+                text=f"⚡ UPDATE {version_text} AVAILABLE — CLICK TO INSTALL", 
                 text_color="#2ecc71", 
                 cursor="hand2"
             )
-            # Bind click to open releases
-            self.update_notif_label.bind("<Button-1>", lambda e: webbrowser.open(f"https://github.com/{config.GITHUB_REPO}/releases"))
-            print("[System] ⚡ Alert: A newer version of the Sovereign Agent is available on GitHub.")
+            self.update_notif_label.bind("<Button-1>", lambda e: self._seamless_update())
+            print(f"[System] ⚡ Alert: Sovereign Agent {version_text} is available. Click the banner to install seamlessly.")
 
     def _run_in_thread(self, func, *args, name="Task", **kwargs):
         """Standard engine for executing mission-critical background tasks."""
@@ -387,16 +389,16 @@ class JobAutomationApp(ctk.CTk):
         visuals_frame.grid_columnconfigure((0, 1), weight=1)
 
         # Funnel Chart (Mission Progress)
-        self.funnel_card = self._create_card(visuals_frame, "📈 MISSION PROGRESS FUNNEL")
+        self.funnel_card = self._create_card(visuals_frame, "📊 MISSION PROGRESS FUNNEL")
         self.funnel_card.grid(row=0, column=0, padx=(0, 10), sticky="nsew")
-        self.funnel_canvas = ctk.CTkCanvas(self.funnel_card, height=180, bg="#121212", highlightthickness=0)
-        self.funnel_canvas.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="nsew")
+        self.funnel_canvas = ctk.CTkCanvas(self.funnel_card, height=240, bg="#0d1117", highlightthickness=0)
+        self.funnel_canvas.grid(row=1, column=0, padx=20, pady=(5, 20), sticky="nsew")
 
         # Pie Chart (Platform Coverage)
-        self.pie_card = self._create_card(visuals_frame, "🥧 PLATFORM DENSITY")
+        self.pie_card = self._create_card(visuals_frame, "🎯 PLATFORM DENSITY")
         self.pie_card.grid(row=0, column=1, padx=(10, 0), sticky="nsew")
-        self.pie_canvas = ctk.CTkCanvas(self.pie_card, height=180, bg="#121212", highlightthickness=0)
-        self.pie_canvas.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="nsew")
+        self.pie_canvas = ctk.CTkCanvas(self.pie_card, height=240, bg="#0d1117", highlightthickness=0)
+        self.pie_canvas.grid(row=1, column=0, padx=20, pady=(5, 20), sticky="nsew")
 
         # Main Deck (Terminal & Quick Actions)
         main_deck = ctk.CTkFrame(self.dashboard_frame, corner_radius=15, border_width=1, border_color="#333")
@@ -468,6 +470,47 @@ class JobAutomationApp(ctk.CTk):
         # Guided Mode Toggle
         ctk.CTkCheckBox(prec_card, text="Enable Hand-in-Hand Guided Mode (Recommended)", 
                         variable=self.guided_var, font=ctk.CTkFont(size=12)).grid(row=2, column=0, padx=25, pady=(0, 20), sticky="w")
+
+        # 4. Tactical Controls Card
+        tac_card = self._create_card(self.scan_frame, "🎛️ TACTICAL CONTROLS")
+        tac_card.grid(row=4, column=0, padx=40, pady=10, sticky="ew")
+
+        tac_inner = ctk.CTkFrame(tac_card, fg_color="transparent")
+        tac_inner.grid(row=1, column=0, padx=25, pady=(10, 25), sticky="ew")
+        tac_inner.grid_columnconfigure(1, weight=1)
+
+        # Match Intensity Slider
+        self.match_label = ctk.CTkLabel(tac_inner, text=f"Match Intensity: {config.MATCH_SCORE_THRESHOLD}%", 
+                                        font=ctk.CTkFont(size=13), text_color="gray90")
+        self.match_label.grid(row=0, column=0, padx=(0, 20), pady=8, sticky="w")
+        
+        self.match_slider = ctk.CTkSlider(tac_inner, from_=30, to=100, number_of_steps=70,
+                                           progress_color="#00d4ff", button_color="#00d4ff", button_hover_color="#00b8e6",
+                                           command=self._on_match_slider)
+        self.match_slider.set(config.MATCH_SCORE_THRESHOLD)
+        self.match_slider.grid(row=0, column=1, padx=0, pady=8, sticky="ew")
+        
+        # Search Intensity Slider
+        self.search_label = ctk.CTkLabel(tac_inner, text=f"Search Intensity: {config.MAX_JOBS_PER_SCAN} jobs", 
+                                          font=ctk.CTkFont(size=13), text_color="gray90")
+        self.search_label.grid(row=1, column=0, padx=(0, 20), pady=8, sticky="w")
+        
+        self.search_slider = ctk.CTkSlider(tac_inner, from_=1, to=50, number_of_steps=49,
+                                            progress_color="#00d4ff", button_color="#00d4ff", button_hover_color="#00b8e6",
+                                            command=self._on_search_slider)
+        self.search_slider.set(config.MAX_JOBS_PER_SCAN)
+        self.search_slider.grid(row=1, column=1, padx=0, pady=8, sticky="ew")
+        
+        # Behavioral Stealth Toggle
+        self.stealth_var = ctk.BooleanVar(value=config.STEALTH_MODE)
+        stealth_row = ctk.CTkFrame(tac_inner, fg_color="transparent")
+        stealth_row.grid(row=2, column=0, columnspan=2, pady=(10, 0), sticky="ew")
+        
+        self.stealth_switch = ctk.CTkSwitch(stealth_row, text="BEHAVIORAL STEALTH (Human Mimicry)", 
+                                             variable=self.stealth_var, progress_color="#00d4ff",
+                                             font=ctk.CTkFont(size=13, weight="bold"),
+                                             command=self._on_stealth_toggle)
+        self.stealth_switch.pack(anchor="center")
 
     def _build_asset_hub_ui(self):
         """Sector 3: Asset Explorer (Resumes & Documents)."""
@@ -600,6 +643,29 @@ class JobAutomationApp(ctk.CTk):
         return val_label
 
     # ─── Logic Controllers ───────────────────────────────────────────
+    
+    def _on_match_slider(self, val):
+        """Tactical Controls: Update match intensity threshold."""
+        threshold = int(val)
+        config.MATCH_SCORE_THRESHOLD = threshold
+        self.match_label.configure(text=f"Match Intensity: {threshold}%")
+        set_key(str(ENV_PATH), "MATCH_SCORE_THRESHOLD", str(threshold))
+
+    def _on_search_slider(self, val):
+        """Tactical Controls: Update search depth per platform."""
+        depth = int(val)
+        config.MAX_JOBS_PER_SCAN = depth
+        self.search_label.configure(text=f"Search Intensity: {depth} jobs")
+        set_key(str(ENV_PATH), "MAX_JOBS_PER_SCAN", str(depth))
+
+    def _on_stealth_toggle(self):
+        """Tactical Controls: Toggle behavioral stealth (human mimicry delays)."""
+        enabled = self.stealth_var.get()
+        config.STEALTH_MODE = enabled
+        set_key(str(ENV_PATH), "STEALTH_MODE", str(enabled).lower())
+        mode = "ACTIVE — Full human mimicry" if enabled else "DISABLED — Speed mode"
+        print(f"[Tactical] Behavioral Stealth: {mode}")
+
     def test_ai_synapse(self):
         """Live connectivity test for the current AI provider."""
         print(f"[System] Initiating AI Synapse handshake via {config.LLM_PROVIDER}...")
@@ -615,16 +681,96 @@ class JobAutomationApp(ctk.CTk):
         self._run_in_thread(run_test, name="Synapse Test")
 
     def run_system_update(self):
-        """Sector 6: Non-destructive mission code synchronization."""
-        print("[System] Initiating update sequence. Safeguarding state...")
-        def do_update():
-            try:
-                from src.update_manager import main as run_update
-                run_update()
-            except Exception as e:
-                print(f"[System] ✗ Update module failure: {e}")
+        """Sector 6: Seamless mission code synchronization."""
+        self._seamless_update()
+
+    def _seamless_update(self):
+        """One-click seamless update with progress feedback."""
+        print("[Update] Initiating seamless update sequence...")
         
-        self._run_in_thread(do_update, name="System Update")
+        if hasattr(self, 'update_notif_label'):
+            self.update_notif_label.configure(text="⏳ DOWNLOADING UPDATE...", text_color="#f1c40f")
+        
+        self.status_indic.configure(text="● UPDATING", text_color="#f1c40f")
+        self.battery_lvl.configure(progress_color="#f1c40f")
+        self.battery_lvl.set(0.0)
+        
+        def progress_callback(pct):
+            try:
+                self.after(0, lambda p=pct: self._update_progress(p))
+            except: pass
+        
+        def do_seamless_update():
+            try:
+                from src.update_manager import check_for_updates, apply_update_seamless, restart_application
+                
+                # Ensure we have the latest info
+                check_for_updates()
+                
+                result = apply_update_seamless(progress_callback=progress_callback)
+                
+                if result['success']:
+                    self.after(0, lambda: self._update_complete(result))
+                elif result.get('message') == "No update available.":
+                    self.after(0, lambda: self._update_not_needed())
+                else:
+                    self.after(0, lambda: self._update_failed(result['message']))
+            except Exception as e:
+                self.after(0, lambda: self._update_failed(str(e)))
+        
+        threading.Thread(target=do_seamless_update, daemon=True).start()
+
+    def _update_not_needed(self):
+        """Handle case when system is already up to date."""
+        self.status_indic.configure(text="● UP TO DATE", text_color="#2ecc71")
+        if hasattr(self, 'update_notif_label'):
+            self.update_notif_label.configure(text="SYSTEM UP TO DATE", text_color="#2ecc71")
+
+    def _update_progress(self, pct):
+        """Update UI progress during download."""
+        try:
+            self.battery_lvl.set(pct)
+            if hasattr(self, 'update_notif_label'):
+                self.update_notif_label.configure(text=f"⏳ DOWNLOADING... {int(pct * 100)}%")
+        except: pass
+
+    def _update_complete(self, result):
+        """Handle successful update."""
+        self.battery_lvl.set(1.0)
+        self.battery_lvl.configure(progress_color="#2ecc71")
+        self.status_indic.configure(text="● UPDATE COMPLETE", text_color="#2ecc71")
+        
+        if hasattr(self, 'update_notif_label'):
+            self.update_notif_label.configure(text="✅ UPDATE INSTALLED — RESTARTING...", text_color="#2ecc71")
+        
+        print(f"[Update] ✓ {result['message']}")
+        
+        if result.get('requires_restart'):
+            # Give user 3 seconds to see the success message, then restart
+            self.after(3000, self._restart_for_update)
+
+    def _update_failed(self, message):
+        """Handle failed update."""
+        self.battery_lvl.set(1.0)
+        self.battery_lvl.configure(progress_color="#e74c3c")
+        self.status_indic.configure(text="● UPDATE FAILED", text_color="#e74c3c")
+        
+        if hasattr(self, 'update_notif_label'):
+            self.update_notif_label.configure(text=f"✗ UPDATE FAILED — Click to retry", text_color="#e74c3c")
+            self.update_notif_label.bind("<Button-1>", lambda e: self._seamless_update())
+        
+        print(f"[Update] ✗ {message}")
+        # Reset status after 5 seconds
+        self.after(5000, lambda: self.status_indic.configure(text="● READY", text_color="#2ecc71"))
+
+    def _restart_for_update(self):
+        """Graceful restart after successful update."""
+        try:
+            from src.update_manager import restart_application
+            self.on_closing()  # Clean up stdout redirect
+            restart_application()
+        except Exception as e:
+            print(f"[Update] Please restart the application manually. ({e})")
 
     def stop_pipeline(self):
         print("[System] EMERGENCY ALL-STOP SIGNALED. Shutting down browser engines.")
@@ -647,62 +793,160 @@ class JobAutomationApp(ctk.CTk):
             print(f"[Error] Stats refresh failed: {e}")
 
     def _update_funnel_chart(self, stats):
+        """Premium funnel visualization with gradient bars and analytics."""
         try:
             if not self.funnel_canvas.winfo_exists(): return
             self.funnel_canvas.delete("all")
-            w, h = 300, 160 # Approx dimensions
+            self.funnel_canvas.update_idletasks()
+            w = max(self.funnel_canvas.winfo_width(), 360)
+            h = max(self.funnel_canvas.winfo_height(), 220)
             
-            # Stages: Disc -> Applied -> Interv -> Offer (Simulated stages)
             stages = [
-                ("DISCOVERY", stats.get('total', 0), "#34495e"),
-                ("APPLIED", stats.get('applied', 0), "#2980b9"),
-                ("INTERVIEW", stats.get('interviews', 0), "#8e44ad"),
-                ("OFFER", stats.get('offers', 0), "#27ae60")
+                ("DISCOVERY", stats.get('total', 0), "#1e6f9f", "#00d4ff"),
+                ("APPLIED", stats.get('applied', 0), "#1a6b33", "#2ecc71"),
+                ("INTERVIEW", stats.get('interviews', 0), "#6c2d91", "#a855f7"),
+                ("OFFER", stats.get('offers', 0), "#b8860b", "#f1c40f")
             ]
             
             max_val = max(1, stages[0][1])
-            y_step = h / len(stages)
+            bar_height = 36
+            spacing = 12
+            total_chart_h = len(stages) * (bar_height + spacing) - spacing
+            start_y = (h - total_chart_h) / 2
+            left_margin = 100
+            right_margin = 55
+            max_bar_width = w - left_margin - right_margin
             
-            for i, (name, val, color) in enumerate(stages):
-                # Calculate trapezoid width based on value ratio
-                ratio = val / max_val
-                width = 250 * ratio
-                x0 = (w - width) / 2
-                x1 = x0 + width
-                y0 = i * y_step + 5
-                y1 = (i + 1) * y_step - 5
+            for i, (name, val, dark_color, bright_color) in enumerate(stages):
+                y0 = start_y + i * (bar_height + spacing)
+                y1 = y0 + bar_height
                 
-                self.funnel_canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="#444")
-                self.funnel_canvas.create_text(w/2, (y0+y1)/2, text=f"{name}: {val}", fill="white", font=("Inter", 10, "bold"))
+                # Background track (subtle)
+                self.funnel_canvas.create_rectangle(
+                    left_margin, y0, left_margin + max_bar_width, y1,
+                    fill="#1a1e26", outline="#2a2e36", width=1
+                )
+                
+                # Filled bar (proportional)
+                ratio = val / max_val if max_val > 0 else 0
+                bar_w = max(max_bar_width * ratio, 4 if val > 0 else 0)
+                
+                if bar_w > 0:
+                    # Main bar
+                    self.funnel_canvas.create_rectangle(
+                        left_margin, y0, left_margin + bar_w, y1,
+                        fill=dark_color, outline=""
+                    )
+                    # Bright tip accent (last 3px glow)
+                    tip_x = left_margin + bar_w
+                    self.funnel_canvas.create_rectangle(
+                        max(tip_x - 3, left_margin), y0, tip_x, y1,
+                        fill=bright_color, outline=""
+                    )
+                
+                # Stage label (left)
+                self.funnel_canvas.create_text(
+                    left_margin - 10, (y0 + y1) / 2,
+                    text=name, fill="#8b949e", font=("Inter", 10, "bold"), anchor="e"
+                )
+                
+                # Value count (right of bar)
+                pct_text = f"{int(ratio * 100)}%" if i > 0 else ""
+                self.funnel_canvas.create_text(
+                    left_margin + max_bar_width + 10, (y0 + y1) / 2,
+                    text=str(val), fill=bright_color, font=("Inter", 12, "bold"), anchor="w"
+                )
+                
+                # Percentage inside bar (if wide enough)
+                if bar_w > 60 and pct_text:
+                    self.funnel_canvas.create_text(
+                        left_margin + bar_w - 8, (y0 + y1) / 2,
+                        text=pct_text, fill="white", font=("Inter", 9), anchor="e"
+                    )
         except: pass
 
     def _update_pie_chart(self, stats):
+        """Premium donut chart with legend and center stat."""
         try:
             if not self.pie_canvas.winfo_exists(): return
             self.pie_canvas.delete("all")
+            self.pie_canvas.update_idletasks()
+            w = max(self.pie_canvas.winfo_width(), 360)
+            h = max(self.pie_canvas.winfo_height(), 220)
+            
             platforms = stats.get('platforms', {})
             if not platforms:
-                self.pie_canvas.create_text(150, 90, text="No Data Yet", fill="gray")
+                self.pie_canvas.create_text(w/2, h/2 - 10, text="NO PLATFORM DATA YET", 
+                                            fill="#4a5568", font=("Inter", 12, "bold"))
+                self.pie_canvas.create_text(w/2, h/2 + 12, text="Run a search to populate", 
+                                            fill="#2d3748", font=("Inter", 10))
                 return
                 
             total = sum(platforms.values())
-            start_angle = 0
-            colors = ["#2ecc71", "#3498db", "#9b59b6", "#f1c40f", "#e67e22", "#e74c3c"]
+            if total == 0: return
             
-            cx, cy, r = 150, 90, 70
+            colors = ["#2ecc71", "#00d4ff", "#a855f7", "#f1c40f", "#e67e22", "#e74c3c", "#3b82f6", "#ec4899"]
+            
+            # Donut chart (left half of canvas)
+            cx = w * 0.32
+            cy = h * 0.42
+            outer_r = min(w * 0.22, h * 0.38)
+            inner_r = outer_r * 0.55
+            
+            start_angle = 90
+            segments = []
             
             for i, (plat, count) in enumerate(platforms.items()):
                 extent = (count / total) * 360
                 color = colors[i % len(colors)]
-                self.pie_canvas.create_arc(cx-r, cy-r, cx+r, cy+r, start=start_angle, extent=extent, fill=color, outline="#121212")
                 
-                # Label
-                mid_angle = math.radians(start_angle + extent/2)
-                lx = cx + (r + 20) * math.cos(mid_angle)
-                ly = cy - (r + 20) * math.sin(mid_angle)
-                self.pie_canvas.create_text(lx, ly, text=f"{plat[:3]}", fill="white", font=("Inter", 8))
+                # Outer arc
+                self.pie_canvas.create_arc(
+                    cx - outer_r, cy - outer_r, cx + outer_r, cy + outer_r,
+                    start=start_angle, extent=extent, fill=color, outline="#0d1117", width=2
+                )
                 
+                segments.append((plat, count, color, start_angle, extent))
                 start_angle += extent
+            
+            # Inner circle (creates donut hole)
+            self.pie_canvas.create_oval(
+                cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r,
+                fill="#0d1117", outline="#0d1117"
+            )
+            
+            # Center stat
+            self.pie_canvas.create_text(cx, cy - 8, text=str(total),
+                                         fill="#00d4ff", font=("Inter", 20, "bold"))
+            self.pie_canvas.create_text(cx, cy + 12, text="TOTAL",
+                                         fill="#4a5568", font=("Inter", 8, "bold"))
+            
+            # Legend (right side)
+            legend_x = w * 0.60
+            legend_y_start = cy - (len(platforms) * 22) / 2
+            
+            for i, (plat, count, color, _, _) in enumerate(segments):
+                ly = legend_y_start + i * 24
+                pct = (count / total * 100)
+                
+                # Color dot
+                dot_r = 5
+                self.pie_canvas.create_oval(
+                    legend_x, ly - dot_r, legend_x + dot_r * 2, ly + dot_r,
+                    fill=color, outline=""
+                )
+                
+                # Platform name
+                self.pie_canvas.create_text(
+                    legend_x + 16, ly,
+                    text=plat, fill="#c9d1d9", font=("Inter", 10), anchor="w"
+                )
+                
+                # Count + percentage
+                self.pie_canvas.create_text(
+                    w - 20, ly,
+                    text=f"{count}  ({pct:.0f}%)", fill="#8b949e", font=("Inter", 9), anchor="e"
+                )
         except Exception: pass
 
     def refresh_crm_feed(self):
@@ -780,7 +1024,10 @@ class JobAutomationApp(ctk.CTk):
     def run_surgical_apply(self, only_docs=False):
         """Sector 2: Precision Striking."""
         url = self.surgical_url_entry.get().strip()
-        if not url: return
+        if not url:
+            import tkinter.messagebox
+            tkinter.messagebox.showwarning("Target Required", "Please enter a valid job URL before generating an asset kit or applying.")
+            return
         
         guided = self.guided_var.get()
         # Phase 32.3: Platform Override Logic
@@ -1255,7 +1502,7 @@ class SearchWindow(ctk.CTkToplevel):
             # run_search_pipeline currently only supports "both" or single; 
             # we will iterate through selected platforms sequentially for stability
             for plat in selected_plats:
-                run_search_pipeline(platform=plat.lower(), keywords=keywords, locations=[location], limit=10)
+                run_search_pipeline(platform=plat.lower(), keywords=keywords, locations=[location], limit=config.MAX_JOBS_PER_SCAN)
             
             self.master.refresh_crm_feed()
             
@@ -1340,17 +1587,17 @@ class HelpCenterWindow(ctk.CTkToplevel):
             "● PLATFORM DENSITY: Intelligence on which sources are yielding the most hits.\n"
             "● REAL-TIME TELEMETRY: Live low-level logs from active automation engines."
         )
-        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12), line_spacing=10).pack(padx=30, pady=10)
+        ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
 
     def _build_gmail_tab(self):
         t = self.tab_gmail
         ctk.CTkLabel(t, text="GOOGLE APP PASSWORD GUIDE", font=ctk.CTkFont(size=16, weight="bold"), text_color="#2ecc71").pack(pady=15)
         guide = (
-            "1. Enable 2-Step Verification in your Google Account settings.\n"
-            "2. Search for 'App Passwords' in the Google Account search bar.\n"
-            "3. Select 'Other (Custom name)' and enter 'Sovereign Agent'.\n"
-            "4. Copy the unique 16-character code (EX: aaaa bbbb cccc dddd).\n"
-            "5. Paste this into the Agent's Password field (leave 'SSL' checked)."
+            "1. Enable 2-Step Verification in your Google Account Security tab.\n"
+            "2. Navigate to 'Security' -> '2-Step Verification'.\n"
+            "3. Scroll to the absolute bottom and click 'App passwords'.\n"
+            "4. Enter 'Sovereign Agent' for the App name and click Create.\n"
+            "5. Copy the 16-character code into the Agent's Password field."
         )
         ctk.CTkLabel(t, text=guide, justify="left", font=("Inter", 12)).pack(padx=30, pady=10)
         ctk.CTkButton(t, text="🔗 OPEN GOOGLE SECURITY CENTER", fg_color="#34495e", 
@@ -1410,11 +1657,16 @@ class HelpCenterWindow(ctk.CTkToplevel):
     def manual_check(self):
         self.status_lbl.configure(text="Connecting to GitHub HQ...", text_color="gray")
         def run():
-            from src.update_manager import check_for_updates
+            from src.update_manager import check_for_updates, get_update_info
             if check_for_updates():
-                self.status_lbl.configure(text="⚡ UPDATE DETECTED: PLEASE RESTART OR DOWNLOAD LATEST", text_color="#f1c40f")
+                info = get_update_info()
+                ver = info.get('version', 'latest')
+                self.status_lbl.configure(
+                    text=f"⚡ v{ver} AVAILABLE — Close this window and click the update banner", 
+                    text_color="#f1c40f"
+                )
                 if hasattr(self.master, '_signal_update_available'):
-                    self.master._signal_update_available()
+                    self.master.after(0, lambda: self.master._signal_update_available(info))
             else:
                 self.status_lbl.configure(text="✓ YOUR AGENT IS UP TO DATE", text_color="#2ecc71")
         
