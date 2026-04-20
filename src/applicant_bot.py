@@ -139,9 +139,23 @@ class ApplicantBot:
                 os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
                 os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
                 os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-                # Fallback to Edge if Chrome is missing
                 os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
             ]
+            
+            # Phase 30.5: Registry Discovery Fallback
+            try:
+                import winreg
+                for key in [r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"]:
+                    try:
+                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as k:
+                            p, _ = winreg.QueryValueEx(k, "")
+                            if p and os.path.exists(p):
+                                paths.insert(0, p)
+                    except: continue
+            except: pass
         elif sys.platform == "darwin": # macOS
             paths = [
                 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -242,15 +256,15 @@ class ApplicantBot:
         self._log(f"Detected Chrome major version: {chrome_ver}")
         
         # Phase 36.1: Version Anomaly Masking
-        # If the detected version is extremely high (e.g. v147), it's likely a modified 
-        # or Canary build. We spoof a stable current version (v123) to reduce bot signature.
         effective_ver = chrome_ver if (chrome_ver and chrome_ver < 140) else 123
         
         common_kwargs = {
             "user_data_dir": str(self.profile_dir),
             "headless": config.HEADLESS_BROWSER,
+            "version_main": effective_ver,
+            "browser_executable_path": self.browser_executable
         }
-
+        
         # Phase 25.1: RETRY ENGINE (Up to 3 attempts)
         last_error = None
         for attempt in range(1, 4):
@@ -260,11 +274,9 @@ class ApplicantBot:
                     cleanup_browser_processes() # Aggressive clear between retries
                     time.sleep(2)
 
+                # Use the options and pathing from common_kwargs but refresh each time
                 kwargs = {**common_kwargs, "options": get_options()}
                 
-                if self.browser_executable:
-                    kwargs["browser_executable_path"] = self.browser_executable
-                    
                 driver = uc.Chrome(**kwargs)
                 
                 # Phase 36.3: Aggressive Identity Masking (CDP Force)

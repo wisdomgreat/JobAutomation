@@ -89,6 +89,59 @@ GITHUB_REPO = "wisdomgreat/JobAutomation"
 def _get(key: str, default: str = "") -> str:
     return os.getenv(key, default).strip()
 
+def reload_from_env():
+    """Force refresh logic: Reload .env and update global variables."""
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH, override=True)
+    
+    global YAHOO_EMAIL, YAHOO_APP_PASSWORD, LLM_PROVIDER, OPENAI_API_KEY, OPENAI_MODEL
+    global GEMINI_API_KEY, GEMINI_MODEL, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+    global GROQ_API_KEY, GROQ_MODEL, OLLAMA_BASE_URL, OLLAMA_MODEL
+    global LMSTUDIO_BASE_URL, LMSTUDIO_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL
+    global TARGET_ROLES, MIN_ROLE_MATCH_SCORE, MATCH_SCORE_THRESHOLD
+    global INDEED_EMAIL, INDEED_PASSWORD, LINKEDIN_EMAIL, LINKEDIN_PASSWORD
+    global ZIPRECRUITER_EMAIL, ZIPRECRUITER_PASSWORD, GLASSDOOR_EMAIL, GLASSDOOR_PASSWORD
+    global DAYS_BACK, MAX_JOBS_PER_SCAN, HEADLESS_BROWSER, STEALTH_MODE
+    
+    YAHOO_EMAIL = _get("YAHOO_EMAIL")
+    YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")
+    LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
+    
+    OPENAI_API_KEY = _get("OPENAI_API_KEY")
+    OPENAI_MODEL = _get("OPENAI_MODEL", "gpt-4o")
+    GEMINI_API_KEY = _get("GEMINI_API_KEY")
+    GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.0-flash")
+    ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
+    ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    GROQ_API_KEY = _get("GROQ_API_KEY")
+    GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
+    LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+    LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
+    OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY")
+    OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+    
+    _roles_raw = _get("TARGET_ROLES", "")
+    TARGET_ROLES = [r.strip() for r in _roles_raw.split(",") if r.strip()] if _roles_raw else []
+    
+    MIN_ROLE_MATCH_SCORE = int(_get("MIN_ROLE_MATCH_SCORE", "60"))
+    MATCH_SCORE_THRESHOLD = int(_get("MATCH_SCORE_THRESHOLD", "75"))
+    
+    INDEED_EMAIL = _get("INDEED_EMAIL")
+    INDEED_PASSWORD = _get("INDEED_PASSWORD")
+    LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
+    LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
+    ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
+    ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
+    GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
+    GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
+    
+    DAYS_BACK = float(_get("DAYS_BACK", "7.0"))
+    MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
+    HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
+    STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
+
 # --- Config Variables ---
 YAHOO_EMAIL = _get("YAHOO_EMAIL")
 YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")

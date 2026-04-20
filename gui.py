@@ -559,6 +559,18 @@ class JobAutomationApp(ctk.CTk):
         
         ctk.CTkButton(m_btn_row, text="📤 UPLOAD MASTER RESUME", fg_color="#2980b9", hover_color="#3498db", command=self.upload_master_resume).pack(side="left")
 
+        # Phase 30.5: Stealth & Browser Monitoring
+        mon_card = self._create_card(self.asset_frame, "🖥️ MISSION MONITORING")
+        mon_card.grid(row=3, column=0, padx=40, pady=10, sticky="ew")
+        
+        mon_inner = ctk.CTkFrame(mon_card, fg_color="transparent")
+        mon_inner.grid(row=1, column=0, padx=25, pady=20, sticky="ew")
+        
+        self.watch_bot_var = ctk.BooleanVar(value=not config.HEADLESS_BROWSER)
+        self.watch_bot_check = ctk.CTkCheckBox(mon_inner, text="WATCH THE BOT WORK (Show Browser Window)", variable=self.watch_bot_var, command=self.save_mission_strategy)
+        self.watch_bot_check.grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(mon_inner, text="Disable this to run in silent stealth mode.", text_color="gray", font=ctk.CTkFont(size=10)).grid(row=1, column=0, padx=28, sticky="w")
+
     def _build_crm_ui(self):
         """Sector 4: Candidate CRM & Application Tracker."""
         header = ctk.CTkLabel(self.crm_frame, text="Candidate Outreach CRM", font=ctk.CTkFont(size=28, weight="bold"))
@@ -636,6 +648,15 @@ class JobAutomationApp(ctk.CTk):
         
         self.days_label = ctk.CTkLabel(em_inner, text=f"{int(config.DAYS_BACK)} Days")
         self.days_label.grid(row=3, column=1, padx=10, sticky="w")
+
+        # Phase 30.5: Target Roles Configuration
+        ctk.CTkLabel(em_inner, text="Target Search Roles (Comma Separated):", font=ctk.CTkFont(size=11, weight="bold"), text_color="#00d4ff").grid(row=4, column=0, pady=(15, 0), sticky="w")
+        self.roles_entry = ctk.CTkEntry(em_inner, height=35, placeholder_text="IT, Developer, Support")
+        self.roles_entry.grid(row=5, column=0, columnspan=2, pady=5, sticky="ew")
+        self.roles_entry.insert(0, ",".join(config.TARGET_ROLES) if config.TARGET_ROLES else "")
+        self.roles_entry.bind("<FocusOut>", lambda e: self.save_mission_strategy())
+
+        ctk.CTkButton(em_inner, text="🧪 TEST EMAIL CONNECTION", height=32, fg_color="#2c3e50", command=self.test_email_discovery).grid(row=6, column=0, pady=(15, 0), sticky="w")
 
         # Platform Access Control (v30.2.10)
         plat_card = self._create_card(self.intel_frame, "🚀 PLATFORM COMMANDER")
@@ -1228,6 +1249,11 @@ class JobAutomationApp(ctk.CTk):
             print("[Security] Ensure AI, Identity, and Resume are properly configured.")
             return
 
+    def run_full_pipeline(self):
+        """Phase 25.0: Direct CLI Orchestration via Thread."""
+        # Force config refresh from .env before mission start
+        config.reload_from_env()
+        
         print("[Operation] INITIATING FULL AUTO-PIPELINE (Autonomous Mode)...")
         
         def run_pipe():

@@ -142,6 +142,37 @@ class EmailScanner:
         self.imap_port = 993
         self.connection: Optional[imaplib.IMAP4_SSL] = None
         
+    def connect(self) -> bool:
+        """Connect to Yahoo IMAP server with retry logic."""
+        if self.connection:
+            try:
+                self.connection.noop()
+                return True
+            except:
+                self.disconnect()
+
+        try:
+            print(f"[System] Connecting to Yahoo Intelligence Core ({self.email_address})...")
+            self.connection = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
+            self.connection.login(self.email_address, self.app_password)
+            return True
+        except Exception as e:
+            print(f"[Error] Failed to connect to Yahoo: {e}")
+            self.connection = None
+            return False
+
+    def test_connection(self) -> bool:
+        """Mission Readiness: Test Yahoo IMAP connectivity."""
+        if self.connect():
+            try:
+                self.connection.select("INBOX")
+                print("[System] ✓ Yahoo Intelligence Core Online.")
+                return True
+            except Exception as e:
+                print(f"[Error] Yahoo handshake failed: {e}")
+                return False
+        return False
+        
         # Phase 32.3: Deep Cross-Reference Cache
         from src.resume_builder import parse_resume
         try:
@@ -416,12 +447,30 @@ class EmailScanner:
             return 100  # No filter = everything matches
 
         best_score = 0
+        job_title_lower = job_title.lower()
+        
+        # Phase 32.5: High-Precision Shortword Acronym Matching
+        # Fuzzy matchers often fail on short strings like "IT"
         for role in config.TARGET_ROLES:
+            role_lower = role.lower()
+            
+            # 1. Exact Word Match (Highest Precision)
+            # Use regex to find role as a distinct word in the title
+            if re.search(rf"\b{re.escape(role_lower)}\b", job_title_lower):
+                best_score = max(best_score, 100)
+                continue
+                
+            # 2. Standard Fuzzy Match
             score = max(
-                fuzz.ratio(job_title.lower(), role.lower()),
-                fuzz.partial_ratio(job_title.lower(), role.lower()),
-                fuzz.token_sort_ratio(job_title.lower(), role.lower()),
+                fuzz.ratio(job_title_lower, role_lower),
+                fuzz.partial_ratio(job_title_lower, role_lower),
+                fuzz.token_sort_ratio(job_title_lower, role_lower),
             )
+            
+            # 3. Boost for Acronyms (e.g., "IT" in "IT Specialist")
+            if len(role) <= 3 and role_lower in job_title_lower.split():
+                score = max(score, 95)
+                
             best_score = max(best_score, score)
         return best_score
     def _llm_score_job(self, job_title: str, description: str) -> tuple[int, str]:
