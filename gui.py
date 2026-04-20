@@ -198,7 +198,8 @@ class JobAutomationApp(ctk.CTk):
         # 1. Dashboard (Metrics & Telemetry)
         self.dashboard_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.dashboard_frame.grid_columnconfigure(0, weight=1)
-        self.dashboard_frame.grid_rowconfigure(2, weight=1)
+        self.dashboard_frame.grid_rowconfigure(2, weight=2) # charts
+        self.dashboard_frame.grid_rowconfigure(3, weight=1) # telemetry
         self._build_dashboard_ui()
         # 8. Analytics (Frontier v34)
         self.analytics_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -388,7 +389,7 @@ class JobAutomationApp(ctk.CTk):
 
         # Mission Intelligence Visuals (New Phase 32.0)
         visuals_frame = ctk.CTkFrame(self.dashboard_frame, fg_color="transparent")
-        visuals_frame.grid(row=2, column=0, padx=40, pady=(10, 25), sticky="ew")
+        visuals_frame.grid(row=2, column=0, padx=40, pady=(5, 10), sticky="nsew")
         visuals_frame.grid_columnconfigure((0, 1), weight=1)
 
         # Funnel Chart (Mission Progress)
@@ -405,7 +406,7 @@ class JobAutomationApp(ctk.CTk):
 
         # Main Deck (Terminal & Quick Actions)
         main_deck = ctk.CTkFrame(self.dashboard_frame, corner_radius=15, border_width=1, border_color="#333")
-        main_deck.grid(row=3, column=0, padx=40, pady=(10, 40), sticky="nsew")
+        main_deck.grid(row=3, column=0, padx=40, pady=(5, 30), sticky="nsew")
         main_deck.grid_columnconfigure(0, weight=1)
         main_deck.grid_rowconfigure(0, weight=1)
 
