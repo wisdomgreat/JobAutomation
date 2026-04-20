@@ -1240,7 +1240,7 @@ class JobAutomationApp(ctk.CTk):
         """Parity: Scan Email Alerts with Platform Filtering."""
         def launch_scan(platforms):
             print(f"[Intelligence] Commencing inbox scan for: {platforms}...")
-            
+            def run_scan():
                 from src.email_scanner import EmailScanner
                 scanner = EmailScanner()
                 # Pass allowed_platforms and mission depth (DAYS_BACK) to scanning logic
