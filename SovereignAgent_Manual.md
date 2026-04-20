@@ -1,4 +1,4 @@
-# Sovereign Agent: Complete Operations Manual
+# Sovereign Agent: Complete Operations Manual (v30.2.2)
 
 ## 1. Overview and Manifesto
 In the contemporary landscape of automated HR filters and "Ghost Jobs," the job seeker requires a technological advantage. Sovereign Agent serves as a highly intelligent, localized automation engine designed to handle the repetitive aspects of the job application process, allowing the user to focus on interview preparation and career strategy.
@@ -7,9 +7,9 @@ In the contemporary landscape of automated HR filters and "Ghost Jobs," the job 
 
 ## 2. Security and Privacy Policy
 Privacy is a fundamental component of the Sovereign Agent architecture.
-* **Localized Storage**: All resumes, AI configurations, and authentication credentials are stored exclusively on the user's local machine.
-* **No Telemetry**: The system does not collect data or communicate with external servers beyond the specified AI providers and job platforms.
-* **Auditability**: As an open-source project, the codebase is fully transparent and available for security auditing.
+ * **Localized Storage**: All resumes, AI configurations, and authentication credentials are stored exclusively on the user's local machine.
+ * **No Telemetry**: The system does not collect data or communicate with external servers beyond the specified AI providers and job platforms.
+ * **Auditability**: As an open-source project, the codebase is fully transparent and available for security auditing.
 
 ## 3. System Requirements and Installation
 
@@ -25,13 +25,11 @@ Windows users may choose between a portable executable or running from the sourc
 1. Install Git from git-scm.com.
 2. Install Python 3.10+ from Python.org, ensuring the "Add Python to PATH" option is selected.
 3. Open a terminal and execute the following commands:
-   ```cmd
-   git clone https://github.com/wisdomgreat/JobAutomation
+   ```powershell
+   git clone https://github.com/wisdomgreat/JobAutomation.git
    cd JobAutomation
-   python -m venv venv
-   venv\Scripts\activate
    pip install -r requirements.txt
-   python gui.py
+   python main.py
    ```
 
 ### macOS Installation
@@ -40,34 +38,30 @@ macOS requires execution from the source code via the Terminal.
    ```bash
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
-2. Install dependencies:
+2. Install Python:
    ```bash
-   brew install git python3
+   brew install python
    ```
-3. Execute the setup:
+3. Clone and Run:
    ```bash
-   git clone https://github.com/wisdomgreat/JobAutomation
+   git clone https://github.com/wisdomgreat/JobAutomation.git
    cd JobAutomation
-   python3 -m venv venv
-   source venv/bin/activate
    pip3 install -r requirements.txt
-   python3 gui.py
+   python3 main.py
    ```
 
 ### Linux and Unix Installation
 1. Install system dependencies:
    ```bash
    sudo apt update
-   sudo apt install git python3 python3-pip python3-venv xvfb
+   sudo apt install python3 python3-pip git python3-tk
    ```
-2. Execute the setup:
+2. Clone and Run:
    ```bash
-   git clone https://github.com/wisdomgreat/JobAutomation
+   git clone https://github.com/wisdomgreat/JobAutomation.git
    cd JobAutomation
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   python3 gui.py
+   pip3 install -r requirements.txt
+   python3 main.py
    ```
 
 ## 4. Post-Installation Configuration
@@ -77,72 +71,81 @@ Upon the first execution, the Sovereign Agent enters a locked state. The Dashboa
 
 ### AI Engine Configuration
 The system relies on a Large Language Model (LLM) to parse job descriptions and generate tailored content.
-1. **Navigate to System Core**: Click the gear icon in the sidebar.
-2. **Select Provider**:
-   * **OpenAI**: High reliability and standard performance. Requires an OpenAI API key.
-   * **Anthropic**: Excellent for nuanced writing and complex analysis.
-   * **OpenRouter**: Highly recommended for optimized costs. Provides access to various models (Claude, LLama, GPT) through a single interface.
-3. **Select Model**:
-   * **gpt-4o / claude-3-sonnet**: High intelligence for complex tailoring.
-   * **gpt-4o-mini**: Fast and highly cost-effective for bulk processing.
-4. **Credential Entry**: Paste the API Key and select **SAVE KEY**.
-5. **Validation**: Select **Test AI Synapse**. A successful handshake will display a green confirmation alert in the console.
+
+1. **Navigate to Intelligence**: Select the `🧠 INTELLIGENCE` tab in the sidebar navigation.
+2. **Artificial Intelligence Core**:
+   * **Primary Intelligence Engine:**: Select your provider (e.g., OpenAI or OpenRouter).
+   * **Provider Access Token (Encrypted):**: Enter your API key (ensure no spaces).
+   * **Target Intelligence Model:**: Select your preferred model (e.g., `gpt-4o-mini`).
+3. **Validation**: Click `🧪 TEST CONNECTION`. A successful handshake will display a confirmation in the terminal telemetry.
 
 ### Identity Commander Setup
-Setting your identity is critical for accurate tailoring.
-1. **Access Identity**: Within the System Core tab, select **EDIT GLOBAL IDENTITY**.
-2. **Personal Information**: Provide your full name, contact information, and professional summary.
-3. **Strategic Preferences**:
-   * **Target Roles**: Enter the specific titles you are seeking (e.g., Senior DevOps Engineer).
-   * **Match Sensitivity**: Adjust the slider to determine how strictly the AI should filter jobs. A higher sensitivity (e.g., 85%) will ignore less relevant postings.
-4. **Save**: Click **SAVE IDENTITY** to commit the profile to the local encrypted database.
+Setting your identity is critical for accurate tailoring and automated form-filling.
+
+1. **Access Identity**: Navigate to the `⚙️ SYSTEM CORE` tab.
+2. **Launch Editor**: Click `📝 LAUNCH IDENTITY COMMANDER`.
+3. **Identity Tabs**: Provide your professional details across the following tabs:
+   * **Personal**: Name, contact details, and social links (LinkedIn/GitHub).
+   * **Work Auth**: Authorization status and visa requirements.
+   * **Experience**: Years of experience and a high-level professional summary.
+   * **Preferences**: Salary expectations, work mode (Remote/Hybrid), and relocation status.
+   * **Skills**: Your full technical and soft skill stack.
+4. **Finalize**: Click `💾 SAVE & SYNC MASTER IDENTITY` to commit the data.
 
 ### Asset Hub and Master Resume
 The AI uses your "Master Resume" as the source of truth for all career data.
-1. **Navigate to Asset Hub**.
+
+1. **Navigate to `📂 ASSET HUB`**.
 2. **Upload Primary Resume**: Select your current resume (PDF or DOCX).
-3. **Verification**: The system will confirm successful ingestion. This document is archived locally and used to generate tailored variants for every application.
+3. **Mission Ingestion**: The system will confirm successful ingestion. This document is archived locally and used to generate tailored variants for every application.
 
 ### Behavioral Stealth Configuration
 To protect your accounts on LinkedIn and Indeed, the agent includes human-mimicry protocols.
-1. **Stealth Mode Toggle**: Ensure this is enabled in the Dashboard.
-2. **Pausing**: The agent will introduce randomized "reading" pauses (5-15 seconds) and scroll behavior to emulate a human user.
-3. **Headless Execution**: For a faster (but more detectable) experience, headless mode can be toggled; however, it is recommended to keep this disabled for primary account safety.
 
-![Search Matrix and Tactical Stealth Controls](docs/images/target_scan.png)
+1. **Access Controls**: Navigate to the `🔍 TARGET SCAN` tab.
+2. **Tactical Controls**:
+   * **Match Intensity**: Set the minimum score (e.g., 70%) for automated consideration.
+   * **Search Intensity**: Set the maximum jobs discovered per platform session.
+   * **BEHAVIORAL STEALTH (Human Mimicry)**: Ensure this toggle is **ENABLED** to implement randomized pauses and human scroll patterns.
 
 ## 5. Operational Procedures
 
 ### Automated Job Scanning
-1. **Search Matrix**: Define the "Job Title" and "Location" (e.g., "Remote" or "London").
-2. **Select Targets**: Check the boxes for the desired job boards.
-3. **Initiate**: Select **RUN FULL AUTO-PIPELINE**.
-4. **Monitoring**: The system will sync discovered jobs every 5 minutes while the engine is active.
+1. **Navigate to `🔍 TARGET SCAN`**.
+2. **Global Search Matrix**: Click `🧭 LAUNCH SEARCH MATRIX`.
+3. **Job Discovery Matrix**:
+   * Enter your **Search Keywords** and **Location**.
+   * Toggle the desired platforms (LinkedIn, Indeed, etc.).
+   * Click `⚡ INITIATE TACTICAL SCAN`.
+4. **Monitoring**: View the results appear in the `🤝 CANDIDATE CRM`.
 
 ### Candidate CRM Management
-1. **Review Feed**: Discovered jobs appear in the CRM.
-2. **Match Score**: Review the AI-calculated score.
+1. **Review Feed**: Navigate to the `🤝 CANDIDATE CRM` tab.
+2. **Analyze Targets**: Review the AI-calculated Match Score (0-100%).
 3. **Actions**:
-   * **Quick Apply**: Generates a tailored resume and cover letter instantly.
-   * **Open Output**: Access the generated files in the `output/` directory.
-   * **Mark Applied**: Select the checkmark icon to log the application and clear it from the active queue.
+   * `APPLY`: Generates a tailored resume and cover letter instantly.
+   * `💬 LOG`: Opens the Strategic Outreach Terminal to log recruiter contacts.
+   * `✅`: Marks the job as applied and archives it.
+   * `🗑️`: Dismisses the opportunity.
 
 ![Candidate CRM Management Interface](docs/images/candidate_crm.png)
 
 ### Targeted Surgical Strike
 For specific job opportunities found outside the automated scan:
-1. Navigate to the **Target Scan** tab.
-2. Input the direct job URL into the **Surgical Precision Strike** field.
-3. Select **GENERATE NEW KIT**.
-4. Retrieve the tailored assets from the `output/` directory.
+
+1. **Navigate to `🔍 TARGET SCAN`**.
+2. **Surgical URL Strike**: Paste the direct job URL into the entry field.
+3. **Select Platform**: Choose the source platform (or Auto-Detect).
+4. **Initiate**: Click `🚀 EXECUTE STRIKE`.
 
 ![Mission Asset Hub and Surgical Strike Interface](docs/images/asset_hub.png)
 
 ## 6. Advanced Configuration: Email Integration
 The Email Scanner parses incoming job alerts from Gmail, Yahoo, or Outlook.
-1. **Enable App Passwords**: Your primary email password will not work for security reasons. Generate a 16-character "App Password" via your email provider's security settings.
-2. **Configure Security Tab**: Enter the email address and App Password in the corresponding platform tab.
-3. **Run Scan**: The agent will extract direct job links from your email notifications and add them as targets in the CRM.
+
+1. **Navigate to `🧠 INTELLIGENCE`**.
+2. **Email Discovery**: Review the configuration and click `❔ SETUP GUIDE` for provider-specific "App Password" instructions.
+3. **Initiate Scan**: Navigate to `🔍 TARGET SCAN` and click `🔍 INITIATE EMAIL SCAN`.
 
 ![In-App Setup and Telemetry Guides](docs/images/help_center.png)
 
@@ -166,16 +169,15 @@ Yes. Simply input "Remote" or "Work from Home" into the Location field of the Se
 If the application crashes immediately with a `TclError`, ensure you are using the latest version (v30.2.2+). This is a known compatibility issue with Windows 11 title bar rendering which has been patched in recent updates.
 
 ### "No Update Available" Error
-If clicking the "Sync System Code" button results in an error message despite an update being available, manually restart the application or download the latest portable version from the GitHub releases page.
+If the update banner does not appear automatically, navigate to `⚙️ SYSTEM CORE` and click `🔄 SYNC SYSTEM CODE` to force a check against GitHub HQ.
 
 ### Search Engine Failing to Extract Jobs
-If the Live Console shows "0 targets found" repeatedly:
 1. Verify your internet connection.
 2. Ensure you do not have a VPN active that is blocked by job platforms.
-3. Check the "Manual Matrix" in the Scan tab to see if a manual browser session can access the site.
+3. Check the `📡 REAL-TIME MISSION TELEMETRY` log on the Dashboard for specific platform errors.
 
 ### API Key Rejected
-Ensure there are no leading or trailing spaces in your API key. Test the key using the "Test AI Synapse" button; if it fails, check your balance on the provider's billing dashboard (OpenAI/OpenRouter).
+Ensure there are no leading or trailing spaces in your API key. Test the key using the `🧪 TEST CONNECTION` button in the Intelligence tab.
 
 ### Documentation and Support
-For persistent issues, utilize the repository's issues tracker or join the discussion board for community assistance.
+For persistent issues, utilize the repository's issues tracker or navigate to `❓ HELP & SUPPORT` in the app for official project links.
