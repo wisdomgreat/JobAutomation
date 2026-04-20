@@ -71,8 +71,15 @@ def run_pyinstaller(mode_flag, name, extra_args=None):
 
     cmd.append(ENTRY_POINT)
     safe_print(f"\n📦 Building {name} ({mode_flag.upper()})...")
-    result = subprocess.run(cmd)
-    return result.returncode == 0
+    safe_print(f"DEBUG: Executing: {' '.join(cmd)}")
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        safe_print(f"❌ PyInstaller Error for {name}:")
+        safe_print(result.stdout)
+        safe_print(result.stderr)
+        return False
+    return True
 
 def build():
     safe_print(f"🚀 [TDWAS Pro] Starting Universal Production Build: {APP_NAME}")
