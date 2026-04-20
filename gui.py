@@ -1368,7 +1368,7 @@ class JobAutomationApp(ctk.CTk):
 
     def on_closing(self):
         sys.stdout = self._old_stdout
-        self.destroy()
+        self.quit()
 
 
 class ProfileEditorWindow(ctk.CTkToplevel):
