@@ -1702,4 +1702,5 @@ class EmailScanDialog(ctk.CTkToplevel):
 
 if __name__ == "__main__":
     app = JobAutomationApp()
+    app.update_idletasks() # Anti-crash measure for ctk titlebar on Python 3.13/Windows
     app.mainloop()

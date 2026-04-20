@@ -930,6 +930,7 @@ def launch_gui():
     try:
         from gui import JobAutomationApp
         app = JobAutomationApp()
+        app.update_idletasks() # Anti-crash measure for CTk Windows titlebar color
         app.mainloop()
         time.sleep(1) # POST-CLOSE STABILIZATION
     except ImportError as e:
