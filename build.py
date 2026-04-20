@@ -45,6 +45,7 @@ def run_pyinstaller(mode_flag, name, extra_args=None):
         cmd.extend(["--icon", ICON_PATH])
 
     # Core Assets
+    data_to_add = [
         ("templates", "templates"),
         ("image", "image"),
         ("VERSION", "."),
