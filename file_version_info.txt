@@ -6,8 +6,8 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
     # filevers and prodvers should be (major, minor, patch, build)
-    filevers=(30, 6, 0, 0),
-    prodvers=(30, 6, 0, 0),
+    filevers=(30, 6, 1, 0),
+    prodvers=(30, 6, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -22,12 +22,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'TDWAS Technology'),
         StringStruct(u'FileDescription', u'Sovereign Agent - Job Automation Bot'),
-        StringStruct(u'FileVersion', u'30.6.0'),
+        StringStruct(u'FileVersion', u'30.6.1'),
         StringStruct(u'InternalName', u'SovereignAgent'),
         StringStruct(u'LegalCopyright', u'TDWAS Technology \xa9 2026'),
         StringStruct(u'OriginalFilename', u'SovereignAgent.exe'),
         StringStruct(u'ProductName', u'SovereignAgent'),
-        StringStruct(u'ProductVersion', u'30.6.0')])
+        StringStruct(u'ProductVersion', u'30.6.1')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
