@@ -6,6 +6,7 @@ Loads environment variables from .env and validates required settings.
 import os
 import sys
 import shutil
+import re
 from pathlib import Path
 from dotenv import load_dotenv, set_key
 
@@ -18,11 +19,8 @@ def get_resource_path(relative_path):
         base_path = os.path.abspath(".")
     return Path(os.path.join(base_path, relative_path))
 
-# PROJECT_ROOT is where the software lives (Program Files)
 PROJECT_ROOT = get_resource_path(".")
 
-# 2. PRO-PERSISTENCE: Where the data lives (Permanent Storage)
-# Standard Windows path: %APPDATA%\TDWAS\SovereignAgent
 if os.name == "nt":
     BASE_DATA_PATH = Path(os.getenv("APPDATA")) / "TDWAS" / "SovereignAgent"
 else:
@@ -33,55 +31,28 @@ LOG_DIR = BASE_DATA_PATH / "logs"
 SCRATCH_DIR = BASE_DATA_PATH / "scratch"
 ENV_PATH = BASE_DATA_PATH / ".env"
 
-# Ensure permanent folders exist
 BASE_DATA_PATH.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
 
-# 3. MIGRATION ENGINE: Copy data from temp/local to permanent
-def run_migration():
-    local_data = Path("data")
-    if local_data.exists() and not (DATA_DIR / "applications.db").exists():
-        print(f"[System] Professional Upgrade: Migrating legacy data to permanent storage...")
-        try:
-            for item in local_data.glob("*"):
-                if item.is_file():
-                    shutil.copy2(item, DATA_DIR / item.name)
-                elif item.is_dir():
-                    shutil.copytree(item, DATA_DIR / item.name, dirs_exist_ok=True)
-            
-            # Copy .env if exists
-            local_env = Path(".env")
-            if local_env.exists():
-                shutil.copy2(local_env, ENV_PATH)
-            
-            print("[System] Migration successful. Data is now persistent.")
-        except Exception as e:
-            print(f"[Warning] Migration partially failed: {e}")
-
-run_migration()
-
-# 4. Load Configuration
+# 2. Configuration Engine
 if ENV_PATH.exists():
     load_dotenv(ENV_PATH, override=True)
 else:
-    # Initialize a clean .env from example if it doesn't exist
     example_env = PROJECT_ROOT / ".env.example"
     if example_env.exists():
         shutil.copy2(example_env, ENV_PATH)
     load_dotenv(ENV_PATH, override=True)
 
 def _get_version() -> str:
-    """Read the version from the VERSION file or return fallback."""
     try:
-        # In EXE, VERSION file should be in the same folder as the exe or in _MEIPASS
         v_file = PROJECT_ROOT / "VERSION"
         if v_file.exists():
             return v_file.read_text().strip()
     except Exception:
         pass
-    return "30.2.11" # Current hardcode fallback
+    return "30.6.0"
 
 VERSION = _get_version()
 GITHUB_REPO = "wisdomgreat/JobAutomation"
@@ -90,61 +61,57 @@ def _get(key: str, default: str = "") -> str:
     return os.getenv(key, default).strip()
 
 def reload_from_env():
-    """Force refresh logic: Reload .env and update global variables."""
+    """Phase 25.0: Dynamic configuration reloading engine."""
     if ENV_PATH.exists():
         load_dotenv(ENV_PATH, override=True)
     
-    global YAHOO_EMAIL, YAHOO_APP_PASSWORD, LLM_PROVIDER, OPENAI_API_KEY, OPENAI_MODEL
-    global GEMINI_API_KEY, GEMINI_MODEL, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
-    global GROQ_API_KEY, GROQ_MODEL, OLLAMA_BASE_URL, OLLAMA_MODEL
-    global LMSTUDIO_BASE_URL, LMSTUDIO_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL
-    global TARGET_ROLES, MIN_ROLE_MATCH_SCORE, MATCH_SCORE_THRESHOLD
-    global INDEED_EMAIL, INDEED_PASSWORD, LINKEDIN_EMAIL, LINKEDIN_PASSWORD
-    global ZIPRECRUITER_EMAIL, ZIPRECRUITER_PASSWORD, GLASSDOOR_EMAIL, GLASSDOOR_PASSWORD
+    global YAHOO_EMAIL, YAHOO_APP_PASSWORD, LLM_PROVIDER, IMAP_SERVER, IMAP_PORT
+    global TARGET_ROLES, MATCH_SCORE_THRESHOLD, MIN_ROLE_MATCH_SCORE
     global DAYS_BACK, MAX_JOBS_PER_SCAN, HEADLESS_BROWSER, STEALTH_MODE
-    
+    global OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY
+
     YAHOO_EMAIL = _get("YAHOO_EMAIL")
     YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")
-    LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
     
-    OPENAI_API_KEY = _get("OPENAI_API_KEY")
-    OPENAI_MODEL = _get("OPENAI_MODEL", "gpt-4o")
-    GEMINI_API_KEY = _get("GEMINI_API_KEY")
-    GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.0-flash")
-    ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
-    ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
-    GROQ_API_KEY = _get("GROQ_API_KEY")
-    GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
-    LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-    LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
-    OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY")
-    OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+    # Universal IMAP Auto-detection (Phase 30.6)
+    IMAP_SERVER = _get("IMAP_SERVER")
+    IMAP_PORT = int(_get("IMAP_PORT", "993"))
+    
+    if not IMAP_SERVER and YAHOO_EMAIL:
+        domain = YAHOO_EMAIL.split("@")[-1].lower()
+        if "gmail.com" in domain: IMAP_SERVER = "imap.gmail.com"
+        elif "outlook.com" in domain or "hotmail.com" in domain: IMAP_SERVER = "outlook.office365.com"
+        elif "yahoo.com" in domain: IMAP_SERVER = "imap.mail.yahoo.com"
+        elif "icloud.com" in domain: IMAP_SERVER = "imap.mail.me.com"
+        else: IMAP_SERVER = "imap.mail.yahoo.com"
+
+    LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
     
     _roles_raw = _get("TARGET_ROLES", "")
     TARGET_ROLES = [r.strip() for r in _roles_raw.split(",") if r.strip()] if _roles_raw else []
     
+    MATCH_SCORE_THRESHOLD = int(_get("MATCH_SCORE_THRESHOLD", "60"))
     MIN_ROLE_MATCH_SCORE = int(_get("MIN_ROLE_MATCH_SCORE", "60"))
-    MATCH_SCORE_THRESHOLD = int(_get("MATCH_SCORE_THRESHOLD", "75"))
-    
-    INDEED_EMAIL = _get("INDEED_EMAIL")
-    INDEED_PASSWORD = _get("INDEED_PASSWORD")
-    LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
-    LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
-    ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
-    ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
-    GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
-    GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
     
     DAYS_BACK = float(_get("DAYS_BACK", "7.0"))
     MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
     HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
     STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
 
-# --- Config Variables ---
+# --- Globals ---
 YAHOO_EMAIL = _get("YAHOO_EMAIL")
 YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")
+IMAP_SERVER = _get("IMAP_SERVER")
+IMAP_PORT = int(_get("IMAP_PORT", "993"))
+
+if not IMAP_SERVER and YAHOO_EMAIL:
+    domain = YAHOO_EMAIL.split("@")[-1].lower()
+    if "gmail.com" in domain: IMAP_SERVER = "imap.gmail.com"
+    elif "outlook.com" in domain or "hotmail.com" in domain: IMAP_SERVER = "outlook.office365.com"
+    elif "yahoo.com" in domain: IMAP_SERVER = "imap.mail.yahoo.com"
+    elif "icloud.com" in domain: IMAP_SERVER = "imap.mail.me.com"
+    else: IMAP_SERVER = "imap.mail.yahoo.com"
+
 LLM_PROVIDER = _get("LLM_PROVIDER", "ollama").lower()
 OPENAI_API_KEY = _get("OPENAI_API_KEY")
 OPENAI_MODEL = _get("OPENAI_MODEL", "gpt-4o")
@@ -154,47 +121,35 @@ ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 GROQ_API_KEY = _get("GROQ_API_KEY")
 GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
-OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
-LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
 OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
 
 _roles_raw = _get("TARGET_ROLES", "")
 TARGET_ROLES = [r.strip() for r in _roles_raw.split(",") if r.strip()] if _roles_raw else []
+MATCH_SCORE_THRESHOLD = int(_get("MATCH_SCORE_THRESHOLD", "60"))
 MIN_ROLE_MATCH_SCORE = int(_get("MIN_ROLE_MATCH_SCORE", "60"))
-MATCH_SCORE_THRESHOLD = int(_get("MATCH_SCORE_THRESHOLD", "75"))
 
-INDEED_EMAIL = _get("INDEED_EMAIL")
-INDEED_PASSWORD = _get("INDEED_PASSWORD")
-LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
-LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
-ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
-ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
-GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
-GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
+# Neural Acronym Map (Expansion Core)
+ACRONYM_MAP = {
+    "it": "Information Technology",
+    "cs": "Customer Service",
+    "swe": "Software Engineer",
+    "dev": "Developer",
+    "qa": "Quality Assurance",
+    "ml": "Machine Learning",
+    "ai": "Artificial Intelligence",
+    "cyber": "Cybersecurity",
+    "hr": "Human Resources"
+}
 
-# Mission Strategy (Phase 38.0)
 DAYS_BACK = float(_get("DAYS_BACK", "7.0"))
-
 MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
 HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
 STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
-TELEMETRY_ENABLED = _get("TELEMETRY_ENABLED", "true").lower() == "true"
-ACCOUNT_PASSWORD = _get("ACCOUNT_PASSWORD", "JobBotPass!2024")
 
-# Supabase Telemetry (Phase 27.3)
-SUPABASE_URL = _get("SUPABASE_URL", "https://jfjrzejmmfaxhsxnasrq.supabase.co")
-SUPABASE_KEY = _get("SUPABASE_KEY", "sb_publishable_szMT54DD1rtMMp4lW8QlQw_GZCQ5dzB")
-
-# Appearance Settings (Phase 27.3)
-GUI_APPEARANCE_MODE = _get("GUI_APPEARANCE_MODE", "Dark")
-GUI_ACCENT_COLOR = _get("GUI_ACCENT_COLOR", "blue")
-
-# Paths (PRO-PERSISTENT)
+# Paths
 OUTPUT_DIR = BASE_DATA_PATH / "output"
-TEMPLATES_DIR = PROJECT_ROOT / "templates" # Templates stay with the app
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
 BASE_RESUME_PDF = DATA_DIR / "base_resume.pdf"
 BASE_RESUME_DOCX = DATA_DIR / "base_resume.docx"
 DB_PATH = DATA_DIR / "applications.db"
@@ -204,11 +159,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 def validate():
     valid_providers = ("openai", "ollama", "lmstudio", "gemini", "claude", "groq", "openrouter")
-    if LLM_PROVIDER not in valid_providers:
-        print(f"[CONFIG ERROR] Invalid provider: {LLM_PROVIDER}")
-        return False
-    return True
+    return LLM_PROVIDER in valid_providers
 
 def summary() -> str:
-    # (Existing summary logic...)
-    return f"Sovereign Agent v{VERSION} | Data: {DATA_DIR}"
+    return f"Sovereign Agent v{VERSION} | Core: {IMAP_SERVER} | Discovery: {len(TARGET_ROLES)} roles"

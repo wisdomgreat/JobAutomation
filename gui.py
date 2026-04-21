@@ -658,6 +658,31 @@ class JobAutomationApp(ctk.CTk):
 
         ctk.CTkButton(em_inner, text="🧪 TEST EMAIL CONNECTION", height=32, fg_color="#2c3e50", command=self.test_email_discovery).grid(row=6, column=0, pady=(15, 0), sticky="w")
 
+        # Phase 30.6: Advanced Email Settings (Universal Support)
+        self.adv_em_frame = ctk.CTkFrame(em_inner, fg_color="transparent")
+        
+        ctk.CTkLabel(self.adv_em_frame, text="IMAP Server (Optional):", font=ctk.CTkFont(size=10)).grid(row=0, column=0, sticky="w")
+        self.imap_srv = ctk.CTkEntry(self.adv_em_frame, height=28, placeholder_text="imap.gmail.com", font=ctk.CTkFont(size=11))
+        self.imap_srv.grid(row=1, column=0, padx=(0, 10), sticky="ew")
+        self.imap_srv.insert(0, os.getenv("IMAP_SERVER") or "")
+        self.imap_srv.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        ctk.CTkLabel(self.adv_em_frame, text="Port:", font=ctk.CTkFont(size=10)).grid(row=0, column=1, sticky="w")
+        self.imap_prt = ctk.CTkEntry(self.adv_em_frame, height=28, width=60, placeholder_text="993", font=ctk.CTkFont(size=11))
+        self.imap_prt.grid(row=1, column=1, sticky="w")
+        self.imap_prt.insert(0, os.getenv("IMAP_PORT") or "993")
+        self.imap_prt.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        self.adv_em_frame.grid_columnconfigure(0, weight=1)
+        
+        def toggle_adv_em():
+            if self.adv_em_frame.winfo_viewable():
+                self.adv_em_frame.grid_remove()
+            else:
+                self.adv_em_frame.grid(row=7, column=0, columnspan=2, pady=10, sticky="ew")
+        
+        ctk.CTkButton(em_inner, text="⚙️ ADVANCED SERVER SETTINGS", font=ctk.CTkFont(size=10), height=20, fg_color="transparent", text_color="gray", hover_color="#222", command=toggle_adv_em).grid(row=8, column=0, columnspan=2, sticky="e")
+
         # Platform Access Control (v30.2.10)
         plat_card = self._create_card(self.intel_frame, "🚀 PLATFORM COMMANDER")
         plat_card.grid(row=4, column=0, padx=40, pady=10, sticky="ew")
@@ -1408,6 +1433,13 @@ class JobAutomationApp(ctk.CTk):
     def save_platform_credentials(self):
         """Strategic Sync: Persist Platform Credentials and Mission Strategy to .env."""
         if self._initializing: return
+        
+        set_key(config.ENV_PATH, "YAHOO_EMAIL", self.em_addr.get().strip())
+        set_key(config.ENV_PATH, "YAHOO_APP_PASSWORD", self.em_pass.get().strip())
+        
+        # Phase 30.6: Universal IMAP Save
+        set_key(config.ENV_PATH, "IMAP_SERVER", self.imap_srv.get().strip())
+        set_key(config.ENV_PATH, "IMAP_PORT", self.imap_prt.get().strip())
         
         creds = {
             "LINKEDIN_EMAIL": self.li_email.get(),

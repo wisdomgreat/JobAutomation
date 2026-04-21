@@ -138,12 +138,12 @@ class EmailScanner:
     def __init__(self):
         self.email_address = config.YAHOO_EMAIL
         self.app_password = config.YAHOO_APP_PASSWORD
-        self.imap_server = "imap.mail.yahoo.com"
-        self.imap_port = 993
+        self.imap_server = config.IMAP_SERVER
+        self.imap_port = config.IMAP_PORT
         self.connection: Optional[imaplib.IMAP4_SSL] = None
         
     def connect(self) -> bool:
-        """Connect to Yahoo IMAP server with retry logic."""
+        """Connect to configured IMAP server with retry logic."""
         if self.connection:
             try:
                 self.connection.noop()
@@ -152,24 +152,24 @@ class EmailScanner:
                 self.disconnect()
 
         try:
-            print(f"[System] Connecting to Yahoo Intelligence Core ({self.email_address})...")
+            print(f"[System] Connecting to Intelligence Core ({self.imap_server}:{self.imap_port})...")
             self.connection = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
             self.connection.login(self.email_address, self.app_password)
             return True
         except Exception as e:
-            print(f"[Error] Failed to connect to Yahoo: {e}")
+            print(f"[Error] Intelligence Core connection failed: {e}")
             self.connection = None
             return False
 
     def test_connection(self) -> bool:
-        """Mission Readiness: Test Yahoo IMAP connectivity."""
+        """Mission Readiness: Test IMAP connectivity."""
         if self.connect():
             try:
                 self.connection.select("INBOX")
-                print("[System] ✓ Yahoo Intelligence Core Online.")
+                print(f"[System] ✓ Intelligence Core Online ({self.imap_server}).")
                 return True
             except Exception as e:
-                print(f"[Error] Yahoo handshake failed: {e}")
+                print(f"[Error] Handshake failed: {e}")
                 return False
         return False
         
@@ -179,20 +179,6 @@ class EmailScanner:
             self.base_resume_text = parse_resume()
         except Exception:
             self.base_resume_text = ""
-
-    def connect(self) -> bool:
-        """Connect to Yahoo Mail via IMAP SSL."""
-        try:
-            self.connection = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
-            self.connection.login(self.email_address, self.app_password)
-            return True
-        except imaplib.IMAP4.error as e:
-            print(f"  [!] IMAP login failed: {e}")
-            print("      Make sure you're using an App Password, not your regular password.")
-            return False
-        except Exception as e:
-            print(f"  [!] Connection error: {e}")
-            return False
 
     def disconnect(self):
         """Close the IMAP connection."""
@@ -454,20 +440,34 @@ class EmailScanner:
         for role in config.TARGET_ROLES:
             role_lower = role.lower()
             
-            # 1. Exact Word Match (Highest Precision)
-            # Use regex to find role as a distinct word in the title
+            # 1. Acronym Expansion (Phase 30.6)
+            expanded_role = config.ACRONYM_MAP.get(role_lower)
+            
+            # 2. Exact Word Match (Highest Precision)
             if re.search(rf"\b{re.escape(role_lower)}\b", job_title_lower):
                 best_score = max(best_score, 100)
                 continue
+            
+            if expanded_role and re.search(rf"\b{re.escape(expanded_role.lower())}\b", job_title_lower):
+                best_score = max(best_score, 100)
+                continue
                 
-            # 2. Standard Fuzzy Match
+            # 3. Standard Fuzzy Match
             score = max(
                 fuzz.ratio(job_title_lower, role_lower),
                 fuzz.partial_ratio(job_title_lower, role_lower),
                 fuzz.token_sort_ratio(job_title_lower, role_lower),
             )
             
-            # 3. Boost for Acronyms (e.g., "IT" in "IT Specialist")
+            # Additional check against expanded role
+            if expanded_role:
+                ex_score = max(
+                    fuzz.ratio(job_title_lower, expanded_role.lower()),
+                    fuzz.partial_ratio(job_title_lower, expanded_role.lower())
+                )
+                score = max(score, ex_score)
+            
+            # 4. Boost for Acronyms (e.g., "IT" in "IT Specialist")
             if len(role) <= 3 and role_lower in job_title_lower.split():
                 score = max(score, 95)
                 
@@ -542,10 +542,15 @@ class EmailScanner:
                 for pattern in all_patterns:
                     try:
                         status, message_ids = self.connection.search(None, f'(FROM "{pattern}" SINCE {since_date_imap})')
-                    except:
-                        try:
+                        
+                        # Phase 30.6: Resilient Discovery Fallback
+                        # If SINCE fails or returns 0 (Yahoo flakiness), fetch latest N messages and filter manually
+                        if status != "OK" or not message_ids[0]:
+                            print(f"[Debug] IMAP SINCE query yielded 0 results for {pattern}. Attempting deep fetch...")
                             status, message_ids = self.connection.search(None, f'(FROM "{pattern}")')
-                        except: continue
+                    except Exception as e:
+                        print(f"[Warning] IMAP search failed for {pattern}: {e}")
+                        continue
 
                     if status != "OK" or not message_ids[0]:
                         continue
@@ -610,9 +615,14 @@ class EmailScanner:
                                 fuzzy_score = self._calculate_match_score(job["title"])
                                 final_score = fuzzy_score
                                 match_reason = "Standard Match"
-                                if fuzzy_score >= 50:
+                                
+                                # Diagnostic Telemetry (v30.6)
+                                print(f"  [Scan] Testing '{job['title'][:40]}' -> Score: {fuzzy_score}")
+                                
+                                if fuzzy_score >= config.MIN_ROLE_MATCH_SCORE:
                                     # LLM-based Scoring (v32.9: Returns Score & Reason)
                                     final_score, match_reason = self._llm_score_job(job["title"], job["description"])
+                                    print(f"  [AI Scan] Intelligence review: {final_score} ({match_reason})")
                                 
                                 # 4. Create Alert if it meets threshold
                                 if final_score >= config.MATCH_SCORE_THRESHOLD:
