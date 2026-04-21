@@ -39,27 +39,33 @@ class JobAlert:
 # Known job alert senders and their parsing patterns
 JOB_ALERT_SENDERS = {
     "indeed": {
-        "from_patterns": ["@indeed.com", "@indeedmail.com", "noreply@indeed.com"],
+        "from_patterns": ["@indeed.com", "@indeedmail.com", "noreply@indeed.com", "indeedapply@indeed.com"],
+        "keywords": ["Indeed"],
         "name": "Indeed",
     },
     "linkedin": {
         "from_patterns": ["@linkedin.com", "jobs-noreply@linkedin.com"],
+        "keywords": ["LinkedIn"],
         "name": "LinkedIn",
     },
     "glassdoor": {
         "from_patterns": ["@glassdoor.com"],
+        "keywords": ["Glassdoor"],
         "name": "Glassdoor",
     },
     "ziprecruiter": {
         "from_patterns": ["@ziprecruiter.com"],
+        "keywords": ["ZipRecruiter"],
         "name": "ZipRecruiter",
     },
     "monster": {
-        "from_patterns": ["@monster.com"],
+        "from_patterns": ["@monster.com", "@monster.ca", "@email.monster", "monster@email.monster.ca"],
+        "keywords": ["Monster"],
         "name": "Monster",
     },
     "careerbuilder": {
         "from_patterns": ["@careerbuilder.com"],
+        "keywords": ["CareerBuilder"],
         "name": "CareerBuilder",
     },
 }
@@ -509,163 +515,157 @@ class EmailScanner:
 
     def scan(self, days_back: int = 3, filter_roles: bool = True, allowed_platforms: Optional[list[str]] = None) -> list[JobAlert]:
         """
-        Scan inbox for job alert emails.
-
-        Args:
-            days_back: How many days back to search
-            filter_roles: If True, only return jobs matching TARGET_ROLES / Resume
-            allowed_platforms: Optional list of platform names to filter (e.g. ['linkedIn', 'indeed'])
+        Deep Discovery Engine (v30.7.0): Scan across multiple folders using keyword-first logic.
         """
-        alerts = []
-        max_retries = 3
-        
-        for attempt in range(max_retries):
+        all_alerts = []
+        if not self.connect():
+            return []
+
+        # Phase 30.7: Discovery Zones
+        folders_to_scan = config.DISCOVERY_FOLDERS
+        print(f"[System] Initiating Deep Hunt across {len(folders_to_scan)} mission zones...")
+
+        since_date_imap = (datetime.now() - timedelta(days=int(config.DAYS_BACK))).strftime("%d-%b-%Y")
+
+        for folder in folders_to_scan:
             try:
-                if not self.connection:
-                    if not self.connect():
-                        return []
+                print(f"[System] Entering Mission Zone: {folder}...")
+                status, _ = self.connection.select(f'"{folder}"', readonly=True)
+                if status != "OK":
+                    print(f"  [Warning] Zone '{folder}' is restricted or missing. Skipping.")
+                    continue
 
-                self.connection.select("INBOX")
-                
-                # Phase 23: Support fractional days for granular search
-                days_float = float(days_back)
-                threshold_dt = datetime.now(datetime.now().astimezone().tzinfo) - timedelta(days=days_float)
-                
-                # IMAP SINCE is only day-granular, so we get all from that day and filter locally
-                since_date_imap = (datetime.now() - timedelta(days=int(days_float) + 1)).strftime("%d-%b-%Y")
-
-                # Get all patterns
-                all_patterns = []
-                for info in JOB_ALERT_SENDERS.values():
-                    all_patterns.extend(info["from_patterns"])
-
-                for pattern in all_patterns:
-                    try:
-                        status, message_ids = self.connection.search(None, f'(FROM "{pattern}" SINCE {since_date_imap})')
-                        
-                        # Phase 30.6: Resilient Discovery Fallback
-                        # If SINCE fails or returns 0 (Yahoo flakiness), fetch latest N messages and filter manually
-                        if status != "OK" or not message_ids[0]:
-                            print(f"[Debug] IMAP SINCE query yielded 0 results for {pattern}. Attempting deep fetch...")
-                            status, message_ids = self.connection.search(None, f'(FROM "{pattern}")')
-                    except Exception as e:
-                        print(f"[Warning] IMAP search failed for {pattern}: {e}")
+                for platform_key, info in JOB_ALERT_SENDERS.items():
+                    # Support for platform filtering
+                    if allowed_platforms and info["name"].lower() not in [p.lower() for p in allowed_platforms]:
                         continue
 
-                    if status != "OK" or not message_ids[0]:
-                        continue
-
-                    ids = message_ids[0].split()
-                    recent_ids = ids[-config.MAX_JOBS_PER_SCAN:]
-                    total_p = len(recent_ids)
-
-                    for i, msg_id in enumerate(recent_ids, 1):
+                    print(f"  [Discovery] Hunting for {info['name']} alerts...")
+                    msg_ids = []
+                    
+                    # 1. Resilient Keyword Search (TEXT)
+                    for kw in info.get("keywords", []):
                         try:
-                            print(f"[Intelligence] {source_key.upper()}: Processing mission alert {i} of {total_p}...")
-                            status, msg_data = self.connection.fetch(msg_id, "(RFC822)")
-                            if status != "OK": continue
-
-                            msg = email.message_from_bytes(msg_data[0][1])
-                            from_addr = self._decode_header_value(msg.get("From", ""))
-                            subject = self._decode_header_value(msg.get("Subject", ""))
-                            date_str = msg.get("Date", "")
+                            search_query = f'TEXT "{kw}"'
+                            if not config.DEEP_SEARCH:
+                                search_query = f'({search_query} SINCE {since_date_imap})'
                             
-                            # Phase 23: Precision filtering by timestamp
+                            status, data = self.connection.search(None, search_query)
+                            if status == "OK" and data[0]:
+                                msg_ids.extend(data[0].split())
+                        except Exception as e:
+                            print(f"    [!] Search error for '{kw}': {e}")
+
+                    # 2. Fallback Pattern Search (FROM)
+                    if not msg_ids:
+                        for pattern in info["from_patterns"]:
                             try:
-                                msg_dt = email.utils.parsedate_to_datetime(date_str)
-                                # Ensure timezone awareness for comparison
-                                if msg_dt.tzinfo is None:
-                                    msg_dt = msg_dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+                                search_query = f'FROM "{pattern}"'
+                                if not config.DEEP_SEARCH:
+                                    search_query = f'({search_query} SINCE {since_date_imap})'
                                 
-                                if msg_dt < threshold_dt:
-                                    continue # Skip older than granular threshold
-                            except Exception:
-                                pass # Fallback to no filter if date is unparseable
+                                status, data = self.connection.search(None, search_query)
+                                if status == "OK" and data[0]:
+                                    msg_ids.extend(data[0].split())
+                            except: continue
 
-                            source_key = self._identify_source(from_addr)
-                            if not source_key: continue
+                    if not msg_ids:
+                        continue
+
+                    # Process unique IDs, newest first
+                    msg_ids = sorted(list(set(msg_ids)), key=int, reverse=True)
+                    msg_ids = msg_ids[:config.MAX_JOBS_PER_SCAN]
+                    
+                    print(f"    [Mission] Found {len(msg_ids)} packets. Extraction in progress...")
+                    
+                    for mid in msg_ids:
+                        try:
+                            status, data = self.connection.fetch(mid, "(RFC822)")
+                            if status != "OK": continue
                             
-                            source_name = JOB_ALERT_SENDERS[source_key]["name"]
-                            
-                            # Phase 32.3: Platform Filtering
-                            if allowed_platforms:
-                                if source_name.lower() not in [p.lower() for p in allowed_platforms]:
-                                    continue
+                            msg = email.message_from_bytes(data[0][1])
+                            alerts = self._parse_alert(msg, platform_key)
+                            all_alerts.extend(alerts)
+                        except Exception as e:
+                            print(f"    [Error] Failed to extract packet {mid}: {e}")
 
-                            html_body = self._extract_body_html(msg)
-                            text_body = self._extract_body_text(msg)
-                            
-                            soup = None
-                            if html_body:
-                                soup = BeautifulSoup(html_body, "lxml")
-                            elif text_body:
-                                soup = BeautifulSoup(text_body, "lxml")
-                            
-                            if not soup: continue
-
-                            # Parse based on source
-                            if source_key == "indeed":
-                                jobs = self._parse_indeed_email(soup, text_body)
-                            elif source_key == "linkedin":
-                                jobs = self._parse_linkedin_email(soup, text_body)
-                            else:
-                                jobs = self._parse_generic_email(soup, text_body)
-
-                            for job in jobs:
-                                fuzzy_score = self._calculate_match_score(job["title"])
-                                final_score = fuzzy_score
-                                match_reason = "Standard Match"
-                                
-                                # Diagnostic Telemetry (v30.6)
-                                print(f"  [Scan] Testing '{job['title'][:40]}' -> Score: {fuzzy_score}")
-                                
-                                if fuzzy_score >= config.MIN_ROLE_MATCH_SCORE:
-                                    # LLM-based Scoring (v32.9: Returns Score & Reason)
-                                    final_score, match_reason = self._llm_score_job(job["title"], job["description"])
-                                    print(f"  [AI Scan] Intelligence review: {final_score} ({match_reason})")
-                                
-                                # 4. Create Alert if it meets threshold
-                                if final_score >= config.MATCH_SCORE_THRESHOLD:
-                                    alert = JobAlert(
-                                        job_title=job["title"],
-                                        company=job.get("company", ""),
-                                        location=job.get("location", ""),
-                                        description=job.get("description", ""),
-                                        apply_url=job.get("url", ""),
-                                        source=source_name,
-                                        email_date=date_str,
-                                        email_subject=subject,
-                                        match_score=final_score,
-                                        match_reason=match_reason
-                                    )
-                                    alerts.append(alert)
-                        except Exception:
-                            continue
-
-                # If we got here, success
-                break
-
-            except (imaplib.IMAP4.error, ConnectionError, TimeoutError) as e:
-                print(f"  [!] IMAP/Socket error (Attempt {attempt+1}/{max_retries}): {e}")
-                self.disconnect()
-                if attempt < max_retries - 1:
-                    time.sleep(5)
-                else:
-                    break
             except Exception as e:
-                print(f"  [!] Unexpected error in scan: {e}")
-                break
+                print(f"[Error] Zone failure in {folder}: {e}")
 
-        # Deduplicate
-        seen_urls = set()
-        unique_alerts = []
-        for alert in alerts:
-            if alert.apply_url not in seen_urls:
-                seen_urls.add(alert.apply_url)
-                unique_alerts.append(alert)
+        self.disconnect()
+        
+        if not all_alerts:
+            print("[System] No new job intelligence discovered in this mission.")
+            return []
 
-        unique_alerts.sort(key=lambda a: a.match_score, reverse=True)
-        return unique_alerts
+        # Final ranking and filtering
+        return self._rank_alerts(all_alerts)
+
+    def _parse_alert(self, msg: email.message.Message, source_key: str) -> list[JobAlert]:
+        """Process a single email message and extract jobs."""
+        from_addr = self._decode_header_value(msg.get("From", ""))
+        subject = self._decode_header_value(msg.get("Subject", ""))
+        date_str = msg.get("Date", "")
+        
+        # Date filtering (v30.7: Precision filter after fetch)
+        try:
+            msg_dt = email.utils.parsedate_to_datetime(date_str)
+            if msg_dt.tzinfo is None:
+                msg_dt = msg_dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+            
+            threshold_dt = datetime.now(datetime.now().astimezone().tzinfo) - timedelta(days=config.DAYS_BACK)
+            if not config.DEEP_SEARCH and msg_dt < threshold_dt:
+                return []
+        except Exception:
+            pass
+
+        html_body = self._extract_body_html(msg)
+        text_body = self._extract_body_text(msg)
+        
+        soup = None
+        if html_body:
+            soup = BeautifulSoup(html_body, "lxml")
+        elif text_body:
+            soup = BeautifulSoup(text_body, "lxml")
+        
+        if not soup: return []
+
+        if source_key == "indeed":
+            jobs = self._parse_indeed_email(soup, text_body)
+        elif source_key == "linkedin":
+            jobs = self._parse_linkedin_email(soup, text_body)
+        else:
+            jobs = self._parse_generic_email(soup, text_body)
+
+        parsed_alerts = []
+        for job in jobs:
+            fuzzy_score = self._calculate_match_score(job["title"])
+            final_score = fuzzy_score
+            match_reason = "Standard Match"
+            
+            # Telemetry
+            print(f"  [Scan] Testing '{job['title'][:40]}' -> Score: {fuzzy_score}")
+            
+            if fuzzy_score >= config.MIN_ROLE_MATCH_SCORE:
+                final_score, match_reason = self._llm_score_job(job["title"], job["description"])
+                print(f"  [AI Scan] Intelligence review: {final_score} ({match_reason})")
+            
+            if final_score >= config.MATCH_SCORE_THRESHOLD:
+                alert = JobAlert(
+                    job_title=job["title"],
+                    company=job.get("company", ""),
+                    location=job.get("location", ""),
+                    description=job["description"],
+                    apply_url=job["url"],
+                    source=JOB_ALERT_SENDERS[source_key]["name"],
+                    email_date=date_str,
+                    email_subject=subject,
+                    match_score=final_score
+                )
+                parsed_alerts.append(alert)
+        
+        return parsed_alerts
+        return parsed_alerts
 
     def check_for_outreach(self) -> int:
         """

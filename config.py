@@ -52,7 +52,7 @@ def _get_version() -> str:
             return v_file.read_text().strip()
     except Exception:
         pass
-    return "30.6.0"
+    return "30.7.0"
 
 VERSION = _get_version()
 GITHUB_REPO = "wisdomgreat/JobAutomation"
@@ -68,6 +68,7 @@ def reload_from_env():
     global YAHOO_EMAIL, YAHOO_APP_PASSWORD, LLM_PROVIDER, IMAP_SERVER, IMAP_PORT
     global TARGET_ROLES, MATCH_SCORE_THRESHOLD, MIN_ROLE_MATCH_SCORE
     global DAYS_BACK, MAX_JOBS_PER_SCAN, HEADLESS_BROWSER, STEALTH_MODE
+    global IMAP_SERVER, IMAP_PORT, ACRONYM_MAP, DISCOVERY_FOLDERS, DEEP_SEARCH
     global OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY
 
     YAHOO_EMAIL = _get("YAHOO_EMAIL")
@@ -97,6 +98,10 @@ def reload_from_env():
     MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
     HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
     STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
+    DEEP_SEARCH = _get("DEEP_SEARCH", "false").lower() == "true"
+
+    _folders_raw = _get("DISCOVERY_FOLDERS", "INBOX,Indeed,Jobs,LinkedIn,Bulk,canada job application,urgentapply")
+    DISCOVERY_FOLDERS = [f.strip() for f in _folders_raw.split(",") if f.strip()]
 
 # --- Globals ---
 YAHOO_EMAIL = _get("YAHOO_EMAIL")

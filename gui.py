@@ -669,9 +669,20 @@ class JobAutomationApp(ctk.CTk):
 
         ctk.CTkLabel(self.adv_em_frame, text="Port:", font=ctk.CTkFont(size=10)).grid(row=0, column=1, sticky="w")
         self.imap_prt = ctk.CTkEntry(self.adv_em_frame, height=28, width=60, placeholder_text="993", font=ctk.CTkFont(size=11))
-        self.imap_prt.grid(row=1, column=1, sticky="w")
         self.imap_prt.insert(0, os.getenv("IMAP_PORT") or "993")
         self.imap_prt.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        # Phase 30.7: Deep Discovery Folders
+        ctk.CTkLabel(self.adv_em_frame, text="Discovery Folder Hunt (Comma Separated):", font=ctk.CTkFont(size=10)).grid(row=2, column=0, columnspan=2, pady=(10, 0), sticky="w")
+        self.dis_fold = ctk.CTkEntry(self.adv_em_frame, height=28, placeholder_text="INBOX, Indeed, LinkedIn, Jobs")
+        self.dis_fold.grid(row=3, column=0, columnspan=2, sticky="ew")
+        self.dis_fold.insert(0, ",".join(config.DISCOVERY_FOLDERS) if config.DISCOVERY_FOLDERS else "INBOX, Indeed, Jobs, LinkedIn")
+        self.dis_fold.bind("<FocusOut>", lambda e: self.save_platform_credentials())
+
+        # Deep Search Toggle
+        self.deep_switch = ctk.CTkSwitch(self.adv_em_frame, text="Deep Search (Scan Entire Inbox History)", font=ctk.CTkFont(size=10), progress_color="#1abc9c", command=self.save_platform_credentials)
+        self.deep_switch.grid(row=4, column=0, columnspan=2, pady=(10, 0), sticky="w")
+        if config.DEEP_SEARCH: self.deep_switch.select()
 
         self.adv_em_frame.grid_columnconfigure(0, weight=1)
         
@@ -1440,6 +1451,10 @@ class JobAutomationApp(ctk.CTk):
         # Phase 30.6: Universal IMAP Save
         set_key(config.ENV_PATH, "IMAP_SERVER", self.imap_srv.get().strip())
         set_key(config.ENV_PATH, "IMAP_PORT", self.imap_prt.get().strip())
+        
+        # Phase 30.7: Deep Discovery Save
+        set_key(config.ENV_PATH, "DISCOVERY_FOLDERS", self.dis_fold.get().strip())
+        set_key(config.ENV_PATH, "DEEP_SEARCH", "true" if self.deep_switch.get() else "false")
         
         creds = {
             "LINKEDIN_EMAIL": self.li_email.get(),
