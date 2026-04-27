@@ -257,8 +257,9 @@ class ApplicantBot:
         chrome_ver = self._detect_chrome_version()
         self._log(f"Detected Chrome major version: {chrome_ver}")
         
-        # Phase 36.1: Version Anomaly Masking
-        effective_ver = chrome_ver if (chrome_ver and chrome_ver < 140) else 123
+        # Phase 36.1: Dynamic Version Alignment
+        # If detection fails, fallback to 123. If detected, use it directly.
+        effective_ver = chrome_ver if chrome_ver else 123
         
         common_kwargs = {
             "user_data_dir": str(self.profile_dir),

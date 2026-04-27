@@ -936,7 +936,9 @@ def launch_gui():
     except ImportError as e:
         console.print(f"[red]Failed to launch GUI: {e}. Ensure 'customtkinter' is installed.[/]")
     except Exception as e:
+        import traceback
         console.print(f"[red]Error launching GUI: {e}[/]")
+        console.print("[dim]" + traceback.format_exc() + "[/]")
 
 
 # ═══════════════════════════════════════════════════════════════
