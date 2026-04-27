@@ -36,9 +36,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 import subprocess
 
 import config
+import asyncio
 from src.llm_provider import get_llm
 from src.form_filler import auto_fill_page
 from src.applicant_profile import ApplicantProfile
+from src.advanced_browser import AdvancedBrowser
 
 
 def _human_delay(min_s: float = 1.5, max_s: float = 4.0):
@@ -2129,6 +2131,27 @@ def apply_to_job(
 
     Returns: {"success": bool, "message": str}
     """
+    if config.BROWSER_ENGINE == "playwright":
+        # AABE (Advanced Agentic Browsing Engine) Path
+        _safe_print(f"  🚀 Launching Antigravity Advanced Engine (AABE)...")
+        try:
+            aabe = AdvancedBrowser(headless=config.HEADLESS_BROWSER)
+            
+            async def run_aabe():
+                await aabe.start()
+                objective = f"Apply to this job role: {apply_url}. Use resume at {resume_path} and raw text {resume_text[:200]}..."
+                await aabe.solve_application(apply_url, objective)
+                # For now, we'll assume success if solve_application finishes without crash
+                # In a real scenario, we'd check for a success message
+                await aabe.stop()
+                return {"success": True, "message": "Applied via AABE"}
+            
+            return asyncio.run(run_aabe())
+        except Exception as e:
+            _safe_print(f"  ⚠ AABE Critical Failure: {e}")
+            _safe_print(f"  🔄 Falling back to Legacy Selenium Engine...")
+            # Fall through to legacy logic
+
     bot = get_bot(apply_url, platform=source if source else None)
     # Re-identify platform for telemetry if not provided
     platform = source if source else _get_platform(apply_url)

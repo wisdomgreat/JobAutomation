@@ -198,7 +198,7 @@ class SetupWizard:
 
     def __init__(self, profile: ApplicantProfile):
         self.profile = profile
-        self.env_path = Path(".env")
+        self.env_path = config.ENV_PATH
 
     def run(self):
         """Run the full all-in-one setup wizard."""

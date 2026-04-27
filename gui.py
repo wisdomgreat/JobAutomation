@@ -1,3 +1,7 @@
+import os
+import sys
+# Debug print at absolute top
+print(f"DEBUG: gui.py is loading from {__file__}")
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -22,8 +26,18 @@ import config
 from config import ENV_PATH, DATA_DIR, BASE_RESUME_PDF, BASE_RESUME_DOCX
 
 # Theme Initialization
-ctk.set_appearance_mode(config.GUI_APPEARANCE_MODE)
-ctk.set_default_color_theme(config.GUI_ACCENT_COLOR)
+try:
+    print(f"[Debug] Appearance Mode: {config.GUI_APPEARANCE_MODE}")
+    print(f"[Debug] Color Theme: {config.GUI_COLOR_THEME}")
+    ctk.set_appearance_mode(config.GUI_APPEARANCE_MODE)
+    # Phase 25.0: Robust Theme Selection (Prevents Hex-Crash)
+    theme = config.GUI_COLOR_THEME
+    if not theme or theme.startswith("#"):
+        theme = "blue"
+    ctk.set_default_color_theme(theme)
+except Exception as e:
+    print(f"[Warning] Theme initialization failed: {e}. Defaulting to blue.")
+    ctk.set_default_color_theme("blue")
 
 def resource_path(relative_path):
     """Sovereign Asset Resolver: Supports Dev and PyInstaller environments."""
@@ -272,19 +286,21 @@ class JobAutomationApp(ctk.CTk):
             print(f"[System] ⚡ Alert: Sovereign Agent {version_text} is available. Click the banner to install seamlessly.")
 
     def _run_in_thread(self, func, *args, name="Task", **kwargs):
-        """Standard engine for executing mission-critical background tasks."""
+        """Standard engine for executing mission-critical background tasks with thread-safe UI updates."""
         def wrapper():
             try:
-                self.status_indic.configure(text=f"● {name.upper()} ACTIVE", text_color="#00d4ff")
-                self.battery_lvl.configure(progress_color="#00d4ff")
+                self.after(0, lambda: self.status_indic.configure(text=f"● {name.upper()} ACTIVE", text_color="#00d4ff"))
+                self.after(0, lambda: self.battery_lvl.configure(progress_color="#00d4ff"))
+                
                 func(*args, **kwargs)
+                
                 print(f"[System] {name} mission complete.")
-                self.status_indic.configure(text="● READY", text_color="#2ecc71")
-                self.battery_lvl.configure(progress_color="#00d4ff")
+                self.after(0, lambda: self.status_indic.configure(text="● READY", text_color="#2ecc71"))
+                self.after(0, lambda: self.battery_lvl.configure(progress_color="#00d4ff"))
             except Exception as e:
                 print(f"[Error] {name} failure: {e}")
-                self.status_indic.configure(text="● CRITICAL ERROR", text_color="#e74c3c")
-                self.battery_lvl.configure(progress_color="#e74c3c")
+                self.after(0, lambda: self.status_indic.configure(text="● CRITICAL ERROR", text_color="#e74c3c"))
+                self.after(0, lambda: self.battery_lvl.configure(progress_color="#e74c3c"))
 
         thread = threading.Thread(target=wrapper, daemon=True)
         thread.start()
@@ -624,6 +640,21 @@ class JobAutomationApp(ctk.CTk):
         em_card = self._create_card(self.intel_frame, "📩 EMAIL DISCOVERY CORE")
         em_card.grid(row=2, column=0, padx=40, pady=10, sticky="ew")
         
+        # Phase 40.0: Browser Intelligence Strategy
+        browser_card = self._create_card(self.intel_frame, "🌐 BROWSER INTELLIGENCE STRATEGY")
+        browser_card.grid(row=3, column=0, padx=40, pady=10, sticky="ew")
+        
+        br_inner = ctk.CTkFrame(browser_card, fg_color="transparent")
+        br_inner.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="ew")
+        
+        ctk.CTkLabel(br_inner, text="Automation Engine Strategy:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=0, sticky="w")
+        self.engine_var = ctk.StringVar(value=config.BROWSER_ENGINE)
+        engine_menu = ctk.CTkOptionMenu(br_inner, values=["playwright", "selenium"], variable=self.engine_var, command=self.save_browser_strategy)
+        engine_menu.grid(row=1, column=0, pady=5, sticky="w")
+        
+        desc = "AABE (Antigravity Advanced Engine): Uses AXTree analysis & semantic navigation. (Recommended)\nLegacy Selenium: Standard selector-based automation."
+        ctk.CTkLabel(br_inner, text=desc, font=ctk.CTkFont(size=10), text_color="gray", justify="left").grid(row=2, column=0, pady=(5, 0), sticky="w")
+        
         em_inner = ctk.CTkFrame(em_card, fg_color="transparent")
         em_inner.grid(row=1, column=0, padx=25, pady=(0, 20), sticky="ew")
         em_inner.grid_columnconfigure((0, 1), weight=1)
@@ -833,6 +864,12 @@ class JobAutomationApp(ctk.CTk):
         set_key(str(ENV_PATH), "STEALTH_MODE", str(enabled).lower())
         mode = "ACTIVE — Full human mimicry" if enabled else "DISABLED — Speed mode"
         print(f"[Tactical] Behavioral Stealth: {mode}")
+        
+    def save_browser_strategy(self, val):
+        """Sector 5: Update the browser engine choice."""
+        config.BROWSER_ENGINE = val
+        set_key(str(ENV_PATH), "BROWSER_ENGINE", val)
+        print(f"[System] Browser strategy updated to: {val.upper()}")
 
     def test_ai_synapse(self):
         """Live connectivity test for the current AI provider."""
@@ -1277,19 +1314,16 @@ class JobAutomationApp(ctk.CTk):
         SearchWindow(self)
 
     def run_full_pipeline(self):
-        """Parity: Full Pipeline (100% Auto)."""
+        """Phase 25.0: Execute the full autonomous pipeline with readiness gate."""
         # Phase 36.1: Readiness Gate
         ai_ok, id_ok, res_ok = self.get_mission_status()
         if not (ai_ok and id_ok and res_ok):
             print("\n[Security] ✗ MISSION ABORTED: Readiness Checklist Incomplete.")
-            print("[Security] Ensure AI, Identity, and Resume are properly configured.")
+            print("[Security] Ensure AI, Identity, and Resume are properly configured in System Core.")
             return
 
-    def run_full_pipeline(self):
-        """Phase 25.0: Direct CLI Orchestration via Thread."""
         # Force config refresh from .env before mission start
         config.reload_from_env()
-        
         print("[Operation] INITIATING FULL AUTO-PIPELINE (Autonomous Mode)...")
         
         def run_pipe():
@@ -1299,6 +1333,24 @@ class JobAutomationApp(ctk.CTk):
             
         self._run_in_thread(run_pipe, name="Full Pipeline")
         self.select_frame_by_name("Dashboard")
+
+    def test_email_discovery(self):
+        """Live connectivity test for the Intelligence Core (IMAP)."""
+        print(f"[System] Initiating Intelligence Core handshake via {config.IMAP_SERVER}...")
+        
+        def run_test():
+            from src.email_scanner import EmailScanner
+            try:
+                scanner = EmailScanner()
+                success = scanner.test_connection()
+                if success:
+                    print(f"[System] ✓ Intelligence Core Online: Connection successful.")
+                else:
+                    print(f"[System] ✗ Intelligence Core Offline: Check your email credentials or IMAP settings.")
+            except Exception as e:
+                print(f"[Error] Handshake failed: {e}")
+        
+        self._run_in_thread(run_test, name="Email Sync Test")
 
     def run_email_scan(self):
         """Parity: Scan Email Alerts with Platform Filtering."""
@@ -1397,14 +1449,8 @@ class JobAutomationApp(ctk.CTk):
         if p == "lmstudio": key = "LMSTUDIO_MODEL"
         
         set_key(str(ENV_PATH), key, model)
-        # Update run-time config
-        if p == "openai": config.OPENAI_MODEL = model
-        elif p == "gemini": config.GEMINI_MODEL = model
-        elif p == "claude": config.ANTHROPIC_MODEL = model
-        elif p == "ollama": config.OLLAMA_MODEL = model
-        elif p == "lmstudio": config.LMSTUDIO_MODEL = model
-        elif p == "groq": config.GROQ_MODEL = model
-        elif p == "openrouter": config.OPENROUTER_MODEL = model
+        # Synchronize run-time config
+        config.reload_from_env()
 
     def save_provider_key(self):
         """Persistence Engine: Synchronizes UI entries with .env and run-time config."""
@@ -1441,20 +1487,24 @@ class JobAutomationApp(ctk.CTk):
         if env_key:
             set_key(str(ENV_PATH), env_key, val)
 
+    def save_mission_strategy(self):
+        """Wrapper for saving mission-critical configuration."""
+        self.save_platform_credentials()
+
     def save_platform_credentials(self):
         """Strategic Sync: Persist Platform Credentials and Mission Strategy to .env."""
         if self._initializing: return
         
-        set_key(config.ENV_PATH, "YAHOO_EMAIL", self.em_addr.get().strip())
-        set_key(config.ENV_PATH, "YAHOO_APP_PASSWORD", self.em_pass.get().strip())
+        set_key(str(config.ENV_PATH), "YAHOO_EMAIL", self.em_addr.get().strip())
+        set_key(str(config.ENV_PATH), "YAHOO_APP_PASSWORD", self.em_pass.get().strip())
         
         # Phase 30.6: Universal IMAP Save
-        set_key(config.ENV_PATH, "IMAP_SERVER", self.imap_srv.get().strip())
-        set_key(config.ENV_PATH, "IMAP_PORT", self.imap_prt.get().strip())
+        set_key(str(config.ENV_PATH), "IMAP_SERVER", self.imap_srv.get().strip())
+        set_key(str(config.ENV_PATH), "IMAP_PORT", self.imap_prt.get().strip())
         
         # Phase 30.7: Deep Discovery Save
-        set_key(config.ENV_PATH, "DISCOVERY_FOLDERS", self.dis_fold.get().strip())
-        set_key(config.ENV_PATH, "DEEP_SEARCH", "true" if self.deep_switch.get() else "false")
+        set_key(str(config.ENV_PATH), "DISCOVERY_FOLDERS", self.dis_fold.get().strip())
+        set_key(str(config.ENV_PATH), "DEEP_SEARCH", "true" if self.deep_switch.get() else "false")
         
         creds = {
             "LINKEDIN_EMAIL": self.li_email.get(),

@@ -568,7 +568,7 @@ def action_switch_llm():
     
     new_provider = Prompt.ask(
         "  Select",
-        choices=["openai", "ollama", "lmstudio", "gemini", "claude", "groq"],
+        choices=["openai", "ollama", "lmstudio", "gemini", "claude", "groq", "openrouter"],
         default=config.LLM_PROVIDER,
     )
 

@@ -69,13 +69,13 @@ class Tracker:
                                 new_conn.execute("""
                                     INSERT OR IGNORE INTO applications 
                                     (job_title, company, location, description, apply_url, source, status, 
-                                     resume_path, cover_letter_path, date_found, date_applied, notes, match_score)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     resume_path, cover_letter_path, date_found, date_applied, notes, match_score, match_reason)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (
                                     row['job_title'], row['company'], row['location'], row['description'],
                                     row['apply_url'], row['source'], row['status'], row['resume_path'],
                                     row['cover_letter_path'], row['date_found'], row['date_applied'],
-                                    row['notes'], row['match_score']
+                                    row['notes'], row['match_score'], row.get('match_reason', '')
                                 ))
                             new_conn.commit()
                         print(f"[System] Migration successful. {len(rows)} records synchronized.")
@@ -112,7 +112,8 @@ class Tracker:
         """Surgical Schema Upgrade: Adds missing columns to existing databases."""
         columns_to_add = [
             ("posted_date", "TEXT DEFAULT ''"),
-            ("hiring_manager", "TEXT DEFAULT ''")
+            ("hiring_manager", "TEXT DEFAULT ''"),
+            ("match_reason", "TEXT DEFAULT ''")
         ]
         
         with sqlite3.connect(str(self.db_path)) as conn:
@@ -231,14 +232,14 @@ class Tracker:
         """
         # Phase 24.1: Ensure schema before adding
         try:
-            return self._add_logic(job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score)
+            return self._add_logic(job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score, match_reason)
         except sqlite3.OperationalError as e:
             if "no such table" in str(e).lower():
                 self._init_db()
-                return self._add_logic(job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score)
+                return self._add_logic(job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score, match_reason)
             raise
 
-    def _add_logic(self, job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score):
+    def _add_logic(self, job_title, company, location, description, apply_url, source, status, resume_path, cover_letter_path, notes, match_score, match_reason=""):
         # 1. Exact URL match (Strongest)
         if apply_url:
             existing = self.find_by_url(apply_url)
@@ -262,13 +263,13 @@ class Tracker:
                 """
                 INSERT INTO applications 
                 (job_title, company, location, description, apply_url, source,
-                 status, resume_path, cover_letter_path, date_found, date_applied, notes, match_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, resume_path, cover_letter_path, date_found, date_applied, notes, match_score, match_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_title, company, location, description, apply_url, source,
                     status, resume_path, cover_letter_path, now,
-                    now if status == "applied" else "", notes, match_score,
+                    now if status == "applied" else "", notes, match_score, match_reason
                 ),
             )
             conn.commit()
@@ -560,5 +561,5 @@ if __name__ == "__main__":
     print(f"\nAnalytics: {analytics}")
 
     # Cleanup
-    test_db.unlink()
+    temp_db.unlink()
     print("✓ Test complete!")

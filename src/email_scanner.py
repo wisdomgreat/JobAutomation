@@ -601,6 +601,23 @@ class EmailScanner:
         # Final ranking and filtering
         return self._rank_alerts(all_alerts)
 
+    def _rank_alerts(self, alerts: list[JobAlert]) -> list[JobAlert]:
+        """Rank job alerts by match score and deduplicate by title/company."""
+        if not alerts:
+            return []
+            
+        # Deduplicate by (title, company)
+        seen = set()
+        unique_alerts = []
+        for alert in alerts:
+            key = (alert.job_title.lower(), alert.company.lower())
+            if key not in seen:
+                seen.add(key)
+                unique_alerts.append(alert)
+        
+        # Sort by match score (highest first)
+        return sorted(unique_alerts, key=lambda x: x.match_score, reverse=True)
+
     def _parse_alert(self, msg: email.message.Message, source_key: str) -> list[JobAlert]:
         """Process a single email message and extract jobs."""
         from_addr = self._decode_header_value(msg.get("From", ""))

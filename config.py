@@ -70,6 +70,10 @@ def reload_from_env():
     global DAYS_BACK, MAX_JOBS_PER_SCAN, HEADLESS_BROWSER, STEALTH_MODE
     global IMAP_SERVER, IMAP_PORT, ACRONYM_MAP, DISCOVERY_FOLDERS, DEEP_SEARCH
     global OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY
+    global OLLAMA_BASE_URL, LMSTUDIO_BASE_URL, GUI_APPEARANCE_MODE, GUI_COLOR_THEME
+    global OLLAMA_MODEL, LMSTUDIO_MODEL, GUI_ACCENT_COLOR
+    global LINKEDIN_EMAIL, LINKEDIN_PASSWORD, INDEED_EMAIL, INDEED_PASSWORD
+    global ZIPRECRUITER_EMAIL, ZIPRECRUITER_PASSWORD, GLASSDOOR_EMAIL, GLASSDOOR_PASSWORD
 
     YAHOO_EMAIL = _get("YAHOO_EMAIL")
     YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")
@@ -87,6 +91,16 @@ def reload_from_env():
         else: IMAP_SERVER = "imap.mail.yahoo.com"
 
     LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
+    OPENAI_API_KEY = _get("OPENAI_API_KEY")
+    OPENAI_MODEL = _get("OPENAI_MODEL", "gpt-4o")
+    GEMINI_API_KEY = _get("GEMINI_API_KEY")
+    GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.0-flash")
+    ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
+    ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    GROQ_API_KEY = _get("GROQ_API_KEY")
+    GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY")
+    OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
     
     _roles_raw = _get("TARGET_ROLES", "")
     TARGET_ROLES = [r.strip() for r in _roles_raw.split(",") if r.strip()] if _roles_raw else []
@@ -102,6 +116,24 @@ def reload_from_env():
 
     _folders_raw = _get("DISCOVERY_FOLDERS", "INBOX,Indeed,Jobs,LinkedIn,Bulk,canada job application,urgentapply")
     DISCOVERY_FOLDERS = [f.strip() for f in _folders_raw.split(",") if f.strip()]
+
+    OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
+    LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+    GUI_APPEARANCE_MODE = _get("GUI_APPEARANCE_MODE", "Dark")
+    GUI_COLOR_THEME = _get("GUI_COLOR_THEME", "blue")
+    GUI_ACCENT_COLOR = _get("GUI_ACCENT_COLOR", "#00d4ff")
+    
+    OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
+    LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
+    
+    LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
+    LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
+    INDEED_EMAIL = _get("INDEED_EMAIL")
+    INDEED_PASSWORD = _get("INDEED_PASSWORD")
+    ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
+    ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
+    GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
+    GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
 
 # --- Globals ---
 YAHOO_EMAIL = _get("YAHOO_EMAIL")
@@ -126,8 +158,31 @@ ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 GROQ_API_KEY = _get("GROQ_API_KEY")
 GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# --- Browser Engine ---
+# Options: selenium | playwright
+BROWSER_ENGINE = _get("BROWSER_ENGINE", "playwright").lower()
+AX_TREE_LIMIT = int(_get("AX_TREE_LIMIT", "50000")) # Max characters for AXTree snapshot
 OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+
+OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
+LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+GUI_APPEARANCE_MODE = _get("GUI_APPEARANCE_MODE", "Dark")
+GUI_COLOR_THEME = _get("GUI_COLOR_THEME", "blue")
+GUI_ACCENT_COLOR = _get("GUI_ACCENT_COLOR", "#00d4ff")
+
+OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
+LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
+
+LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
+LINKEDIN_PASSWORD = _get("LINKEDIN_PASSWORD")
+INDEED_EMAIL = _get("INDEED_EMAIL")
+INDEED_PASSWORD = _get("INDEED_PASSWORD")
+ZIPRECRUITER_EMAIL = _get("ZIPRECRUITER_EMAIL")
+ZIPRECRUITER_PASSWORD = _get("ZIPRECRUITER_PASSWORD")
+GLASSDOOR_EMAIL = _get("GLASSDOOR_EMAIL")
+GLASSDOOR_PASSWORD = _get("GLASSDOOR_PASSWORD")
 
 _roles_raw = _get("TARGET_ROLES", "")
 TARGET_ROLES = [r.strip() for r in _roles_raw.split(",") if r.strip()] if _roles_raw else []
@@ -151,6 +206,10 @@ DAYS_BACK = float(_get("DAYS_BACK", "7.0"))
 MAX_JOBS_PER_SCAN = int(_get("MAX_JOBS_PER_SCAN", "20"))
 HEADLESS_BROWSER = _get("HEADLESS_BROWSER", "false").lower() == "true"
 STEALTH_MODE = _get("STEALTH_MODE", "true").lower() == "true"
+DEEP_SEARCH = _get("DEEP_SEARCH", "false").lower() == "true"
+
+_folders_raw = _get("DISCOVERY_FOLDERS", "INBOX,Indeed,Jobs,LinkedIn,Bulk,canada job application,urgentapply")
+DISCOVERY_FOLDERS = [f.strip() for f in _folders_raw.split(",") if f.strip()]
 
 # Paths
 OUTPUT_DIR = BASE_DATA_PATH / "output"
