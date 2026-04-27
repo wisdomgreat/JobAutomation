@@ -18,7 +18,6 @@ OutputBaseFilename=SovereignAgent_Installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-IconFile=image\favicon.ico
 SetupIconFile=image\favicon.ico
 
 [Languages]
@@ -40,4 +39,4 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipfsredundant
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
