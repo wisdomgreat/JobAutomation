@@ -124,7 +124,7 @@ def show_banner():
         f"{banner}\n[dim center][bold cyan]Bot Engine v25.0.0[/] | [dim]Direct Search Upgrade[/][/]",
         style="bold cyan",
         box=box.DOUBLE,
-        subtitle="[bold yellow]Antigravity Engine Active[/]"
+        subtitle="[bold yellow]Antigravity Engine v1.0 Active[/]"
     ))
     console.print(config.summary())
     console.print()
