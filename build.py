@@ -53,6 +53,13 @@ def run_pyinstaller(mode_flag, name, extra_args=None):
         (".env.example", "."),
     ]
     
+    if ctk_path and not os.path.exists("customtkinter"):
+        safe_print(f"📂 Copying customtkinter assets from {ctk_path}...")
+        try:
+            shutil.copytree(ctk_path, "customtkinter", dirs_exist_ok=True)
+        except Exception as e:
+            safe_print(f"⚠️ Warning: Could not copy customtkinter: {e}")
+    
     for src, dst in data_to_add:
         if src and os.path.exists(src):
             cmd.extend(["--add-data", f"{src}{sep}{dst}"])
