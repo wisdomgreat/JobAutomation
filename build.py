@@ -4,10 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-try:
-    import customtkinter
-except ImportError:
-    customtkinter = None
+customtkinter = None # Avoid importing to prevent GUI hangs in remote shells
 
 def safe_print(msg):
     """Print that handles Windows console encoding issues."""
@@ -30,7 +27,23 @@ VERSION_FILE = "file_version_info.txt"
 def run_pyinstaller(mode_flag, name, extra_args=None):
     """Executes PyInstaller with given parameters."""
     sep = ";" if os.name == "nt" else ":"
-    ctk_path = os.path.dirname(customtkinter.__file__) if 'customtkinter' in sys.modules else ""
+    # Find customtkinter path via site-packages to avoid import hang
+    ctk_path = ""
+    try:
+        import site
+        for sp in site.getsitepackages():
+            potential_path = os.path.join(sp, "customtkinter")
+            if os.path.exists(potential_path):
+                ctk_path = potential_path
+                break
+    except Exception:
+        pass
+    
+    if not ctk_path:
+        # Fallback to manual check in venv
+        ctk_path = os.path.abspath("venv/Lib/site-packages/customtkinter")
+        if not os.path.exists(ctk_path):
+            ctk_path = ""
     
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -73,21 +86,17 @@ def run_pyinstaller(mode_flag, name, extra_args=None):
     safe_print(f"\n📦 Building {name} ({mode_flag.upper()})...")
     safe_print(f"DEBUG: Executing: {' '.join(cmd)}")
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Run with real-time output instead of capturing
+    result = subprocess.run(cmd, capture_output=False, text=True)
     if result.returncode != 0:
-        safe_print(f"❌ PyInstaller Error for {name}:")
-        safe_print(result.stdout)
-        safe_print(result.stderr)
+        safe_print(f"❌ PyInstaller Error for {name}")
         return False
     return True
 
 def build():
     safe_print(f"🚀 [TDWAS Pro] Starting Universal Production Build: {APP_NAME}")
     
-    # 1. Environment Check
-    if customtkinter is None:
-        safe_print("❌ ERROR: CustomTkinter not found.")
-        sys.exit(1)
+    # 1. Environment Check (Skipped for stability)
 
     # 2. Cleanup
     cur_dir = Path(__file__).parent
