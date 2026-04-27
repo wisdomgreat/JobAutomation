@@ -25,10 +25,12 @@ def reload_from_env():
     global DAYS_BACK, MAX_JOBS_PER_SCAN, HEADLESS_BROWSER, STEALTH_MODE
     global IMAP_SERVER, IMAP_PORT, ACRONYM_MAP, DISCOVERY_FOLDERS, DEEP_SEARCH
     global GUI_APPEARANCE_MODE, GUI_ACCENT_COLOR, GUI_COLOR_THEME
-    global OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY
-    global OLLAMA_BASE_URL, LMSTUDIO_BASE_URL, OLLAMA_MODEL, LMSTUDIO_MODEL
+    global OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY
+    global OLLAMA_BASE_URL, LMSTUDIO_BASE_URL, OLLAMA_MODEL, LMSTUDIO_MODEL, GROQ_MODEL
     global LINKEDIN_EMAIL, LINKEDIN_PASSWORD, INDEED_EMAIL, INDEED_PASSWORD
     global ZIPRECRUITER_EMAIL, ZIPRECRUITER_PASSWORD, GLASSDOOR_EMAIL, GLASSDOOR_PASSWORD
+    global LLM_PROVIDER
+
 
     YAHOO_EMAIL = _get("YAHOO_EMAIL")
     YAHOO_APP_PASSWORD = _get("YAHOO_APP_PASSWORD")
@@ -58,10 +60,14 @@ def reload_from_env():
     GUI_ACCENT_COLOR = _get("GUI_ACCENT_COLOR", "#00d4ff")
 
     # LLM Providers
+    LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
     OLLAMA_BASE_URL = _get("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL = _get("OLLAMA_MODEL", "llama3")
     LMSTUDIO_BASE_URL = _get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
     LMSTUDIO_MODEL = _get("LMSTUDIO_MODEL", "local-model")
+    GROQ_API_KEY = _get("GROQ_API_KEY")
+    GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
 
     # Job Platforms
     LINKEDIN_EMAIL = _get("LINKEDIN_EMAIL")
@@ -144,3 +150,32 @@ OUTPUT_DIR = BASE_DATA_PATH / "output"
 
 for d in [DATA_DIR, LOG_DIR, RESUME_DIR, OUTPUT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
+
+PROJECT_ROOT = Path(__file__).parent.absolute()
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+BASE_RESUME_PDF = DATA_DIR / "base_resume.pdf"
+BASE_RESUME_DOCX = DATA_DIR / "base_resume.docx"
+DB_PATH = DATA_DIR / "applications.db"
+PROFILE_PATH = DATA_DIR / "profile.yaml"
+
+def _get_version() -> str:
+    try:
+        v_file = PROJECT_ROOT / "VERSION"
+        if v_file.exists():
+            return v_file.read_text().strip()
+    except Exception:
+        pass
+    return "30.11.0"
+
+VERSION = _get_version()
+LLM_PROVIDER = _get("LLM_PROVIDER", "claude").lower()
+GROQ_API_KEY = _get("GROQ_API_KEY")
+GROQ_MODEL = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+def validate():
+    valid_providers = ("openai", "ollama", "lmstudio", "gemini", "claude", "groq", "openrouter")
+    return LLM_PROVIDER in valid_providers
+
+def summary() -> str:
+    return f"Sovereign Agent v{VERSION} | Core: {IMAP_SERVER} | Discovery: {len(TARGET_ROLES)} roles"
+
