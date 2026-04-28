@@ -111,7 +111,7 @@ class JobAutomationApp(ctk.CTk):
                 self.sidebar, text=f"{icon}  {name}", 
                 height=45, corner_radius=8, 
                 fg_color="transparent", text_color=TEXT_PRIMARY,
-                anchor="w", font=ctk.CTkFont(size=13, weight="medium"),
+                anchor="w", font=ctk.CTkFont(size=13, weight="bold"),
                 command=lambda n=name: self.select_frame_by_name(n)
             )
             btn.pack(pady=4, padx=15, fill="x")
