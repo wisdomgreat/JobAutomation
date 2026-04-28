@@ -1,5 +1,5 @@
 #define MyAppName "Sovereign Agent"
-#define MyAppVersion "30.11.5"
+#define MyAppVersion "30.11.6"
 #define MyAppPublisher "TDWAS Technology"
 #define MyAppURL "https://tdwas.com"
 #define MyAppExeName "SovereignAgent.exe"
