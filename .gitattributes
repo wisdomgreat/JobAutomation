@@ -1,0 +1,5 @@
+* text=auto
+
+# Force LF for workflow files to prevent phantom modifications on Windows runners
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf

@@ -62,6 +62,9 @@ jobs:
         echo "version=$NEW_VER" >> $GITHUB_OUTPUT
         echo "NEW_VERSION=$NEW_VER" >> $GITHUB_ENV
 
+    - name: 🛡️ Sanitize Workspace (Prevent Phantom Commits)
+      run: git checkout -- .github/ || true
+
     - name: 💾 Commit Version Update
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
