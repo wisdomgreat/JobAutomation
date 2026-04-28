@@ -1,55 +1,40 @@
-# Sovereign Agent: Complete Operations Manual (v30.2.2)
+# Sovereign Agent: User Manual (v30.11.0)
 
-## 1. Overview and Manifesto
+Welcome to Sovereign Agent! This guide will walk you through setting up and using your personal AI job assistant. Our goal is to make the repetitive parts of job hunting effortless, so you can focus on acing your interviews.
 
-In the contemporary landscape of automated HR filters and "Ghost Jobs," the job seeker requires a technological advantage. Sovereign Agent serves as a highly intelligent, localized automation engine designed to handle the repetitive aspects of the job application process, allowing the user to focus on interview preparation and career strategy.
+---
 
+## 1. Privacy First
 
-## 2. Security and Privacy Policy
+Your privacy is our top priority:
+* **Local Storage**: Your resume, AI API keys, and account passwords never leave your computer. Everything is stored locally.
+* **No Tracking**: We don't track your usage or collect your data.
+* **Open Source**: The code is completely public and transparent, so anyone can verify how it works.
 
-Privacy is a fundamental component of the Sovereign Agent architecture.
+---
 
-* **Localized Storage**: All resumes, AI configurations, and authentication credentials are stored exclusively on the user's local machine.
-* **No Telemetry**: The system does not collect data or communicate with external servers beyond the specified AI providers and job platforms.
-* **Auditability**: As an open-source project, the codebase is fully transparent and available for security auditing.
+## 2. Installation
 
-## 3. System Requirements and Installation
+### Windows Users (Recommended)
 
-### Windows Installation
+We offer two easy ways to run the app on Windows without needing to install programming tools.
 
-Windows users may choose between a portable executable or running from the source code.
+#### Option A: The Installer (.exe) - *Easiest!*
+1. Go to the [Releases page](https://github.com/wisdomgreat/JobAutomation/releases/latest) and download `Sovereign_Agent_Setup_30.11.0.exe`.
+2. Double-click the downloaded file and follow the standard installation prompts.
+3. Open "Sovereign Agent" from your Start menu!
 
-#### Option A: Portable Executable (Recommended)
+#### Option B: Portable Version (.zip)
+1. Download `SovereignAgent_Portable_v30.11.0.zip` from the Releases page.
+2. Extract the folder to your computer (e.g., your Desktop or Documents folder).
+3. Inside the folder, double-click `SovereignAgent_Portable.exe` to run the app.
 
-1. Download the latest `SovereignAgent_Portable.zip` from the official repository releases.
-2. Extract the contents to a dedicated directory (e.g., `C:\SovereignAgent`).
-3. Execute `SovereignAgent_Portable.exe` to launch the application.
+### Mac and Linux Users (Source Code)
 
-#### Option B: Installation from Source
-
-1. Install Git from git-scm.com.
-2. Install Python 3.10+ from Python.org, ensuring the "Add Python to PATH" option is selected.
-3. Open a terminal and execute the following commands:
-   ```powershell
-   git clone https://github.com/wisdomgreat/JobAutomation.git
-   cd JobAutomation
-   pip install -r requirements.txt
-   python main.py
-   ```
-
-### macOS Installation
-
-macOS requires execution from the source code via the Terminal.
-
-1. Install Homebrew:
-   ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   ```
-2. Install Python:
-   ```bash
-   brew install python
-   ```
-3. Clone and Run:
+For macOS and Linux, you'll need to run the app from its source code.
+1. Open your Terminal.
+2. Ensure you have Python 3.10+ installed.
+3. Run the following commands:
    ```bash
    git clone https://github.com/wisdomgreat/JobAutomation.git
    cd JobAutomation
@@ -57,147 +42,91 @@ macOS requires execution from the source code via the Terminal.
    python3 main.py
    ```
 
-### Linux and Unix Installation
+---
 
-1. Install system dependencies:
-   ```bash
-   sudo apt update
-   sudo apt install python3 python3-pip git python3-tk
-   ```
-2. Clone and Run:
-   ```bash
-   git clone https://github.com/wisdomgreat/JobAutomation.git
-   cd JobAutomation
-   pip3 install -r requirements.txt
-   python3 main.py
-   ```
+## 3. Getting Started: The Setup Checklist
 
-## 4. Post-Installation Configuration
+When you first open Sovereign Agent, some features will be locked until you complete a quick setup. Follow these steps to get everything ready:
 
-### Initial Launch and Mandatory Onboarding
+### A. Connect Your AI
+The app uses an AI (like ChatGPT or Claude) to read job descriptions and write your custom cover letters and resumes.
 
-Upon the first execution, the Sovereign Agent enters a locked state. The Dashboard and Scanning features will only activate once the "Mission Readiness" parameters (AI keys, Identity, and Resume) are satisfied.
+1. Go to the **🧠 INTELLIGENCE** tab on the left menu.
+2. Choose your preferred AI provider (e.g., OpenAI, Anthropic, or OpenRouter for affordable options).
+3. Paste your API key into the secure password box.
+4. Click **🧪 TEST CONNECTION** to make sure it's working!
 
-### AI Engine Configuration
+### B. Fill Out Your Profile
+Tell the app about your experience so it can fill out job applications for you.
 
-The system relies on a Large Language Model (LLM) to parse job descriptions and generate tailored content.
+1. Go to the **⚙️ SYSTEM CORE** tab.
+2. Click **📝 LAUNCH PROFILE EDITOR**.
+3. Fill out the tabs: Personal Info, Work Experience, Salary Preferences, and Skills.
+4. Click **💾 SAVE PROFILE** when you're done.
 
-1. **Navigate to Intelligence**: Select the `🧠 INTELLIGENCE` tab in the sidebar navigation.
-2. **Artificial Intelligence Core**:
-   * **Primary Intelligence Engine:**: Select your provider (e.g., OpenAI or OpenRouter).
-   * **Provider Access Token (Encrypted):**: Enter your API key (ensure no spaces).
-   * **Target Intelligence Model:**: Select your preferred model (e.g., `gpt-4o-mini`).
-3. **Validation**: Click `🧪 TEST CONNECTION`. A successful handshake will display a confirmation in the terminal telemetry.
+### C. Upload Your Base Resume
+The AI needs your standard resume to learn about your background.
 
-### Identity Commander Setup
+1. Go to the **📂 ASSET HUB** tab.
+2. Click to upload your current resume (PDF or Word document).
+3. The app will save a copy locally to use as a template for tailoring.
 
-Setting your identity is critical for accurate tailoring and automated form-filling.
+---
 
-1. **Access Identity**: Navigate to the `⚙️ SYSTEM CORE` tab.
-2. **Launch Editor**: Click `📝 LAUNCH IDENTITY COMMANDER`.
-3. **Identity Tabs**: Provide your professional details across the following tabs:
-   * **Personal**: Name, contact details, and social links (LinkedIn/GitHub).
-   * **Work Auth**: Authorization status and visa requirements.
-   * **Experience**: Years of experience and a high-level professional summary.
-   * **Preferences**: Salary expectations, work mode (Remote/Hybrid), and relocation status.
-   * **Skills**: Your full technical and soft skill stack.
-4. **Finalize**: Click `💾 SAVE & SYNC MASTER IDENTITY` to commit the data.
+## 4. How to Find and Apply for Jobs
 
-### Asset Hub and Master Resume
+Sovereign Agent gives you several powerful tools to find work.
 
-The AI uses your "Master Resume" as the source of truth for all career data.
+### Automated Job Searching
+Let the app scan job boards for you and automatically apply to the best matches.
 
-1. **Navigate to `📂 ASSET HUB`**.
-2. **Upload Primary Resume**: Select your current resume (PDF or DOCX).
-3. **Mission Ingestion**: The system will confirm successful ingestion. This document is archived locally and used to generate tailored variants for every application.
+1. Go to the **🔍 TARGET SCAN** tab.
+2. Enter the **Job Title** (e.g., "Software Engineer") and **Location** (e.g., "Remote" or "New York").
+3. Check the boxes for the sites you want to search (LinkedIn, Indeed, etc.).
+4. Click **⚡ START SEARCH**. 
+5. The new **Antigravity Browsing Engine (AABE)** will safely open background browsers to find jobs and add them to your tracker.
 
-### Behavioral Stealth Configuration
+### The Application Tracker (CRM)
+Track every job you find in one easy place!
 
-To protect your accounts on LinkedIn and Indeed, the agent includes human-mimicry protocols.
+1. Go to the **🤝 APPLICATION TRACKER** tab to see your list of jobs.
+2. The app assigns a **Match Score (0-100%)** to show how well your resume fits the job.
+3. Click **APPLY** next to any job. The app will instantly generate a tailored resume and cover letter, and attempt to fill out the application form for you!
+4. You can also manually mark jobs as "Interviewing", "Rejected", or delete them to keep your list clean.
 
-1. **Access Controls**: Navigate to the `🔍 TARGET SCAN` tab.
-2. **Tactical Controls**:
-   * **Match Intensity**: Set the minimum score (e.g., 70%) for automated consideration.
-   * **Search Intensity**: Set the maximum jobs discovered per platform session.
-   * **BEHAVIORAL STEALTH (Human Mimicry)**: Ensure this toggle is **ENABLED** to implement randomized pauses and human scroll patterns.
+### Direct Job Link Apply
+Found a job link on your own? The app can still tailor your resume for it!
 
-## 5. Operational Procedures
+1. Go to the **🔍 TARGET SCAN** tab.
+2. Paste the URL of the job posting into the "Direct Link" box.
+3. Click **🚀 APPLY TO LINK**.
 
-### Automated Job Scanning
+---
 
-1. **Navigate to `🔍 TARGET SCAN`**.
-2. **Global Search Matrix**: Click `🧭 LAUNCH SEARCH MATRIX`.
-3. **Job Discovery Matrix**:
-   * Enter your **Search Keywords** and **Location**.
-   * Toggle the desired platforms (LinkedIn, Indeed, etc.).
-   * Click `⚡ INITIATE TACTICAL SCAN`.
-4. **Monitoring**: View the results appear in the `🤝 CANDIDATE CRM`.
+## 5. Advanced Features
 
-### Candidate CRM Management
+### Safety First (Stealth Mode)
+To keep your LinkedIn and Indeed accounts safe from being flagged as bots, the app uses "Stealth Mode." It scrolls and clicks at human speeds with randomized pauses. We highly recommend keeping this feature turned on in your settings!
 
-1. **Review Feed**: Navigate to the `🤝 CANDIDATE CRM` tab.
-2. **Analyze Targets**: Review the AI-calculated Match Score (0-100%).
-3. **Actions**:
-   * `APPLY`: Generates a tailored resume and cover letter instantly.
-   * `💬 LOG`: Opens the Strategic Outreach Terminal to log recruiter contacts.
-   * `✅`: Marks the job as applied and archives it.
-   * `🗑️`: Dismisses the opportunity.
+### Email Alert Scanning
+If you get job alerts sent to your email (like Yahoo, Gmail, or Outlook), Sovereign Agent can read them for you!
+1. Go to the **🧠 INTELLIGENCE** tab to set up your email provider. (You will usually need to generate an "App Password" from your email settings).
+2. Go to **🔍 TARGET SCAN** and click **🔍 SCAN EMAILS** to automatically pull those jobs into your tracker.
 
-### Targeted Surgical Strike
+---
 
-For specific job opportunities found outside the automated scan:
+## 6. FAQ & Troubleshooting
 
-1. **Navigate to `🔍 TARGET SCAN`**.
-2. **Surgical URL Strike**: Paste the direct job URL into the entry field.
-3. **Select Platform**: Choose the source platform (or Auto-Detect).
-4. **Initiate**: Click `🚀 EXECUTE STRIKE`.
+### Is it safe to use this on my LinkedIn account?
+Yes! The Antigravity Browsing Engine uses safe, human-like scrolling and randomized clicking delays to ensure your account isn't flagged. However, we always recommend avoiding running thousands of applications in a single day. 
 
-## 6. Advanced Configuration: Email Integration
+### Why is my Application Tracker empty?
+The tracker usually defaults to showing "New" jobs. If you haven't searched for any jobs yet, it will be empty! Head over to the Target Scan tab to find some jobs.
 
-The Email Scanner parses incoming job alerts from Gmail, Yahoo, or Outlook.
+### I'm getting an error when I try to run a search.
+1. Check your internet connection.
+2. Ensure you aren't using a strict VPN that job boards might block.
+3. Check the log screen on the Dashboard to see what the specific error says.
 
-1. **Navigate to `🧠 INTELLIGENCE`**.
-2. **Email Discovery**: Review the configuration and click `❔ SETUP GUIDE` for provider-specific "App Password" instructions.
-3. **Initiate Scan**: Navigate to `🔍 TARGET SCAN` and click `🔍 INITIATE EMAIL SCAN`.
-
-## 7. Frequently Asked Questions (FAQ)
-
-### Is using this bot safe for my LinkedIn account?
-
-Yes. The Sovereign Agent is designed with behavioral offsets. It avoids rapid-fire actions, implements human scrolling patterns, and does not interact with protected API endpoints directly. However, it is always recommended to use the "Stealth Mode" settings for maximum safety.
-
-### Why is the Candidate CRM feed empty?
-
-The CRM feed defaults to showing "NEW" jobs. If you have already applied to or dismissed all targets, the feed will appear empty. Ensure your search parameters (Title/Location) are broad enough to yield results.
-
-### Which AI model provides the best value?
-
-**gpt-4o-mini** via OpenRouter is currently the most cost-effective solution, providing high-quality tailoring for cent-fractions per application.
-
-### Does the system support remote-only searches?
-
-Yes. Simply input "Remote" or "Work from Home" into the Location field of the Search Matrix.
-
-## 8. Troubleshooting Guide
-
-### Application Crash on Launch (Windows)
-
-If the application crashes immediately with a `TclError`, ensure you are using the latest version (v30.2.2+). This is a known compatibility issue with Windows 11 title bar rendering which has been patched in recent updates.
-
-### "No Update Available" Error
-
-If the update banner does not appear automatically, navigate to `⚙️ SYSTEM CORE` and click `🔄 SYNC SYSTEM CODE` to force a check against GitHub HQ.
-
-### Search Engine Failing to Extract Jobs
-
-1. Verify your internet connection.
-2. Ensure you do not have a VPN active that is blocked by job platforms.
-3. Check the `📡 REAL-TIME MISSION TELEMETRY` log on the Dashboard for specific platform errors.
-
-### API Key Rejected
-
-Ensure there are no leading or trailing spaces in your API key. Test the key using the `🧪 TEST CONNECTION` button in the Intelligence tab.
-
-### Documentation and Support
-
-For persistent issues, utilize the repository's issues tracker or navigate to `❓ HELP & SUPPORT` in the app for official project links.
+### Need more help?
+If you're stuck, feel free to open an issue on our GitHub page or ask the community for support! Happy job hunting!

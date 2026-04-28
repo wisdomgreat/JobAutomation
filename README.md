@@ -1,38 +1,33 @@
-# Sovereign Agent (JobAutomation) v30.2.2
+# Sovereign Agent (JobAutomation) v30.11.0
 
-**A professional-grade, autonomous recruitment agent designed for the modern job market.**
+**Your personal, AI-powered assistant for the modern job market.**
 
-Sovereign Agent leverages Large Language Models (LLMs) to automate the entire job discovery and application lifecycle. It provides a hardened, local-first environment for managing your professional identity and executing tactical application strikes across multiple platforms.
+Sovereign Agent uses advanced Artificial Intelligence to automate the tedious parts of job hunting. From finding the right roles to customizing your resume and applying, Sovereign Agent handles the heavy lifting so you can focus on preparing for interviews. Best of all, it runs entirely on your local machine, ensuring your data remains private and secure.
 
 ![Sovereign Agent Dashboard](docs/images/dashboard_hero.png)
 
-## Core Capabilities
-*   **Tactical Search Matrix**: Autonomous discovery across LinkedIn, Indeed, ZipRecruiter, and more.
-*   **Neural Tailoring**: Real-time resume and cover letter generation using GPT-4oz, Claude 3.5, or local LLMs.
-*   **Behavioral Stealth**: Human-optimized browsing patterns to ensure account safety.
-*   **Zero-Cloud Privacy**: All resumes, API keys, and identity data are stored strictly on your local machine.
-*   **Low-Impact Performance**: Event-driven architecture with zero busy-waiting, preserving battery life and SSD health.
-*   **Candidate CRM**: A centralized hub for tracking leads, interviews, and outreach activities.
+## ✨ Key Features
+*   **Smart Job Discovery**: Automatically finds matching jobs across LinkedIn, Indeed, ZipRecruiter, and more.
+*   **AI Resume Tailoring**: Uses top-tier AI (like ChatGPT, Claude, or Gemini) to instantly customize your resume and cover letter for every single application.
+*   **Antigravity Browsing Engine (AABE)**: Our new, highly reliable automation engine smoothly navigates complex job boards and fills out applications for you.
+*   **Safe & Human-like**: Browses at human speeds with randomized pauses to keep your job board accounts safe from bots.
+*   **100% Private**: Your resumes, API keys, and personal data never leave your computer.
+*   **Centralized Tracker**: A built-in CRM to track all your applications, interviews, and job statuses in one place.
 
-## Quick Start (Cross-Platform)
+## 🚀 Quick Start (Windows)
 
-1.  **Clone & Install**:
-    ```bash
-    git clone https://github.com/wisdomgreat/JobAutomation.git
-    cd JobAutomation
-    pip install -r requirements.txt
-    ```
+The easiest way to get started is by using our official installer:
 
-2.  **Launch Mission Control**:
-    ```bash
-    python main.py
-    ```
+1.  **Download**: Go to the [Releases page](https://github.com/wisdomgreat/JobAutomation/releases/latest) and download `Sovereign_Agent_Setup_30.11.0.exe`.
+2.  **Install**: Run the installer and follow the prompts.
+3.  **Launch**: Open Sovereign Agent from your Start menu or Desktop.
+4.  **Setup**: Follow the simple checklist on the Dashboard to connect your AI, set up your profile, and upload your base resume.
 
-3.  **Deploy**: Follow the **Mission Readiness Checklist** on the Dashboard to sync your AI, Identity, and Resume.
+*Mac and Linux users can easily run the app from the source code. See the manual below.*
 
-## Documentation
-For detailed configuration, troubleshooting, and advanced mission protocols:
+## 📚 Documentation
+Want to learn more about setting up your email alerts, using local AI models, or advanced search features?
 👉 **[Read the Sovereign Agent Operations Manual](SovereignAgent_Manual.md)**
 
 ---
-*Disclaimer: This tool is intended for professional use only. Always review AI-generated content before submission.*
+*Disclaimer: This tool is intended to assist your job search. Please review AI-generated resumes occasionally to ensure accuracy before submission.*
