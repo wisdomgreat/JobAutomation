@@ -25,6 +25,15 @@ The easiest way to get started is by using our official installer:
 
 *Mac and Linux users can easily run the app from the source code. See the manual below.*
 
+## 🔄 Getting Updates
+
+We frequently release new features and bug fixes. To update your app to the latest version:
+1. Go to our [Releases page](https://github.com/wisdomgreat/JobAutomation/releases/latest).
+2. Download the newest Installer (`.exe`) or Portable zip.
+3. Run the installer or extract the zip. Your data (like your resume and profile) is saved securely in your AppData folder, so **you will not lose your saved information** when you update!
+
+*If you are running from source code, simply run `git pull` in the folder to get the latest updates.*
+
 ## 📚 Documentation
 Want to learn more about setting up your email alerts, using local AI models, or advanced search features?
 👉 **[Read the Sovereign Agent Operations Manual](SovereignAgent_Manual.md)**

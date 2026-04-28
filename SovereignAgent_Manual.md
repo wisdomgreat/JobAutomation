@@ -44,7 +44,25 @@ For macOS and Linux, you'll need to run the app from its source code.
 
 ---
 
-## 3. Getting Started: The Setup Checklist
+## 3. How to Update the App
+
+We frequently release new features and bug fixes. To update your app to the latest version:
+
+### If using the Installer or Portable (.zip)
+1. Go to our [Releases page](https://github.com/wisdomgreat/JobAutomation/releases/latest).
+2. Download the newest Installer (`.exe`) or Portable zip.
+3. Run the installer or extract the zip. Your data (like your resume and profile) is saved securely in your AppData folder, so **you will not lose your saved information** when you update!
+
+### If using Source Code
+Simply open your terminal, go to the `JobAutomation` folder, and type:
+```bash
+git pull
+```
+
+---
+
+## 4. Getting Started: The Setup Checklist
+
 
 When you first open Sovereign Agent, some features will be locked until you complete a quick setup. Follow these steps to get everything ready:
 
@@ -73,7 +91,7 @@ The AI needs your standard resume to learn about your background.
 
 ---
 
-## 4. How to Find and Apply for Jobs
+## 5. How to Find and Apply for Jobs
 
 Sovereign Agent gives you several powerful tools to find work.
 
@@ -103,7 +121,7 @@ Found a job link on your own? The app can still tailor your resume for it!
 
 ---
 
-## 5. Advanced Features
+## 6. Advanced Features
 
 ### Safety First (Stealth Mode)
 To keep your LinkedIn and Indeed accounts safe from being flagged as bots, the app uses "Stealth Mode." It scrolls and clicks at human speeds with randomized pauses. We highly recommend keeping this feature turned on in your settings!
@@ -115,7 +133,7 @@ If you get job alerts sent to your email (like Yahoo, Gmail, or Outlook), Sovere
 
 ---
 
-## 6. FAQ & Troubleshooting
+## 7. FAQ & Troubleshooting
 
 ### Is it safe to use this on my LinkedIn account?
 Yes! The Antigravity Browsing Engine uses safe, human-like scrolling and randomized clicking delays to ensure your account isn't flagged. However, we always recommend avoiding running thousands of applications in a single day. 
