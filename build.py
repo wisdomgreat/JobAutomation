@@ -49,7 +49,8 @@ def run_pyinstaller(mode_flag, name, extra_args=None):
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", mode_flag, "--windowed",
         "--name", name, "--clean", "--noupx",
-        "--collect-all", "playwright"
+        "--collect-all", "playwright",
+        "--collect-all", "playwright_stealth"
     ]
     
     if os.path.exists(VERSION_FILE) and os.name == "nt":
